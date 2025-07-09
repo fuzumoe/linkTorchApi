@@ -52,9 +52,12 @@ func (u *User) ToDTO() *UserDTO {
 
 // FromCreateInput maps CreateUserInput to the User model.
 func UserFromCreateInput(input *CreateUserInput) *User {
+	timeNow := time.Now()
 	return &User{
-		Username: input.Username,
-		Email:    input.Email,
-		Password: input.Password,
+		Username:  input.Username,
+		Email:     input.Email,
+		Password:  input.Password,
+		CreatedAt: timeNow,
+		UpdatedAt: timeNow,
 	}
 }
