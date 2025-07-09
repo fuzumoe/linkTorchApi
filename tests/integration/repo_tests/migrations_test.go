@@ -26,7 +26,8 @@ func TestMain(m *testing.M) {
 }
 
 func TestMigrate_MySQLIntegration(t *testing.T) {
-	integration.SkipIfDBUnavailable(t)
+	// Ensure the test database is available; panic if not.
+	integration.CheckDBAvailability()
 
 	// Setup: Get clean database
 	db := integration.SetupTest(t)

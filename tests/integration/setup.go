@@ -31,7 +31,7 @@ func InitTestSuite() error {
 	// Build root DSN from environment variables.
 	rootDSN = buildRootDSN()
 
-	// Get test database name
+	// Get test database name.
 	testDBName = os.Getenv("TEST_MYSQL_DB_NAME")
 	if testDBName == "" {
 		testDBName = "urlinsight_test"
@@ -88,7 +88,7 @@ func InitTestSuite() error {
 		sqlDB.SetMaxIdleConns(5)
 		sqlDB.SetConnMaxLifetime(5 * time.Minute)
 
-		// Test connection
+		// Test connection.
 		if err := sqlDB.Ping(); err != nil {
 			return fmt.Errorf("failed to ping test database: %w", err)
 		}
@@ -141,7 +141,7 @@ func buildRootDSN() string {
 
 // buildTestDSN builds the test database DSN from environment variables.
 func buildTestDSN(dbName string) string {
-	// Get database configuration from environment
+	// Get database configuration from environment.
 	host := getEnvOrDefault("DB_HOST", "localhost")
 	port := getEnvOrDefault("DB_PORT", "3309")
 
@@ -237,14 +237,15 @@ func CleanTestData(t *testing.T) {
 	testDB.Exec("SET FOREIGN_KEY_CHECKS = 1")
 }
 
-// SkipIfDBUnavailable skips the test if database is not available.
-func SkipIfDBUnavailable(t *testing.T) {
+// CheckDBAvailability panics if the test database is not available.
+func CheckDBAvailability() {
 	if testDB == nil {
-		t.Skip("Database not available for integration tests")
+		panic("Test database not initialized: database is not available for integration tests")
 	}
-
-	if sqlDB, err := testDB.DB(); err != nil || sqlDB.Ping() != nil {
-		t.Skip("Database connection not available")
+	if sqlDB, err := testDB.DB(); err != nil {
+		panic(fmt.Sprintf("Failed to get DB connection: %v", err))
+	} else if err := sqlDB.Ping(); err != nil {
+		panic(fmt.Sprintf("Database connection not available: %v", err))
 	}
 }
 
