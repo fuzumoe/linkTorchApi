@@ -1,0 +1,56 @@
+run:
+  timeout: 5m
+  tests: true
+  skip-dirs:
+    - "vendor"
+  skip-files:
+    - ".*\\.gen\\.go"
+linters-settings:
+  gofmt:
+    simplify: true
+  goimports:
+    local-prefixes: github.com/fuzumoe/urlinsight-backend
+  unused:
+    check-exported: true
+  govet:
+    check-shadowing: true
+  gosimple:
+    checks: ["all"]
+  staticcheck:
+    checks: ["all"]
+  revive:
+    ignore-generated-header: true
+    severity: warning
+issues:
+  exclude-rules:
+    - path: _test\\.go
+      linters:
+        - errcheck
+  max-same-issues: 0
+linters:
+  enable:
+    - govet
+    - errcheck
+    - staticcheck
+    - gosimple
+    - unused
+    - ineffassign
+    - typecheck
+    - unconvert
+    - gofmt
+    - goimports
+    - misspell
+    - gocyclo
+    - dupl
+    - revive
+  disable:
+    # Deprecated linters that should be removed
+    - deadcode
+    - structcheck
+    - varcheck
+    - maligned
+    - nakedret
+dupl:
+  threshold: 50
+gocyclo:
+  min-complexity: 15

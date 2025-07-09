@@ -1,0 +1,9 @@
+/bin/
+/vendor/
+/*.exe
+.env
+.vscode/
+*.log
+urlinsight-backend
+tmp/
+vendor/

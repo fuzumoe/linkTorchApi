@@ -1,0 +1,61 @@
+services:
+  mysql:
+    image: ${MYSQL_IMAGE:-mysql:8.0}
+    container_name: urlinsight-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_secret}
+      MYSQL_ALLOW_EMPTY_PASSWORD: "no"
+    ports:
+      - "${DB_PORT:-3309}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - urlinsight-network
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
+      timeout: 20s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: urlinsight-app
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8090}:${PORT:-8080}"
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      PORT: ${PORT}
+      GIN_MODE: ${GIN_MODE}
+      JWT_SECRET: ${JWT_SECRET}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - urlinsight-network
+    volumes:
+      - logs:/app/logs
+    healthcheck:
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:${PORT}/health" ]
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+networks:
+  urlinsight-network:
+    driver: bridge
+
+volumes:
+  mysql_data:
+    driver: local
+  logs:
+    driver: local
