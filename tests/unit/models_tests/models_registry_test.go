@@ -4,8 +4,9 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/fuzumoe/urlinsight-backend/internal/model"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/fuzumoe/urlinsight-backend/internal/model"
 )
 
 func TestAllModelsContainsExpectedTypes(t *testing.T) {

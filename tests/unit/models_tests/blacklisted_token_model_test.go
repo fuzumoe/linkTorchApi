@@ -1,12 +1,13 @@
-package configs_test
+package model_test
 
 import (
 	"os"
 	"testing"
 	"time"
 
-	"github.com/fuzumoe/urlinsight-backend/configs"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/fuzumoe/urlinsight-backend/configs"
 )
 
 func TestLoad_Success(t *testing.T) {
