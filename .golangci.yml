@@ -6,6 +6,15 @@ linters-settings:
     simplify: true
   goimports:
     local-prefixes: github.com/fuzumoe/urlinsight-backend
+  unused:
+    check-exported: true
+  gosimple:
+    checks: ["all"]
+  staticcheck:
+    checks: ["all"]
+  revive:
+    ignore-generated-header: true
+    severity: warning
 issues:
   exclude-dirs:
     - "vendor"
@@ -17,14 +26,30 @@ issues:
         - errcheck
   max-same-issues: 0
 linters:
-  # Only enable the most reliable linters
   enable:
     - govet
+    - errcheck
+    - staticcheck
+    - gosimple
+    - unused
+    - ineffassign
+    - typecheck
+    - unconvert
     - gofmt
     - goimports
+    - misspell
+    - gocyclo
+    - dupl
     - revive
-  disable-all: true
-    - scopelint   
+  disable:
+    - nakedret    
+    - maligned    
+    - deadcode    
+    - structcheck 
+    - varcheck    
+    - nakedret    
+    - scopelint    
+    - goanalysis_metalinter
 dupl:
   threshold: 50
 gocyclo:
