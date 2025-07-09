@@ -50,3 +50,12 @@ func TestLinkFromCreateInput(t *testing.T) {
 	assert.NotZero(t, link.CreatedAt, "CreatedAt should be set")
 	assert.NotZero(t, link.UpdatedAt, "UpdatedAt should be set")
 }
+
+// TestLinkTableName tests the TableName method of the Link model.
+func TestLinkTableName(t *testing.T) {
+	expected := "links"
+	link := model.Link{}
+
+	assert.Equal(t, expected, link.TableName(), "TableName should return 'links'")
+
+}
