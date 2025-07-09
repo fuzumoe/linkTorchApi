@@ -7,12 +7,14 @@ repos:
       - id: check-yaml
       - id: check-added-large-files
 
-  - repo: https://github.com/golangci/golangci-lint
-    rev: v1.58.0
-    hooks:
-      - id: golangci-lint
-        args: [--config=.golangci.yml, --fix]
-        stages: [pre-commit]  # Changed from commit to pre-commit
+  # Temporarily disabled due to compatibility issues with Go generics
+  # - repo: https://github.com/golangci/golangci-lint
+  #   rev: v1.59.0
+  #   hooks:
+  #     - id: golangci-lint
+  #       args: [--config=.golangci.yml, --issues-exit-code=1]
+  #       pass_filenames: false
+  #       stages: [pre-commit]
 
   - repo: local
     hooks:
