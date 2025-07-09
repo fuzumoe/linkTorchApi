@@ -10,7 +10,7 @@ import (
 type URL struct {
 	ID          uint           `gorm:"primaryKey;autoIncrement" json:"id"`
 	UserID      uint           `gorm:"not null;index" json:"user_id"`
-	OriginalURL string         `gorm:"type:text;not null;unique" json:"original_url"`
+	OriginalURL string         `gorm:"type:varchar(191);uniqueIndex;not null" json:"original_url"`
 	Status      string         `gorm:"type:enum('queued','running','done','error');default:'queued';not null" json:"status"`
 	CreatedAt   time.Time      `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt   time.Time      `gorm:"autoUpdateTime" json:"updated_at"`
