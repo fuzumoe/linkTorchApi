@@ -55,6 +55,6 @@ func UserFromCreateInput(input *CreateUserInput) *User {
 	return &User{
 		Username: input.Username,
 		Email:    input.Email,
-		Password: input.Password, // note: hashing should occur in service layer
+		Password: input.Password,
 	}
 }

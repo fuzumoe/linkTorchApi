@@ -42,14 +42,13 @@ linters:
     - dupl
     - revive
   disable:
-    - nakedret    
-    - maligned    
-    - deadcode    
-    - structcheck 
-    - varcheck    
-    - nakedret    
-    - scopelint    
-    - goanalysis_metalinter
+    - nakedret
+    - maligned
+    - deadcode
+    - structcheck
+    - varcheck
+    - nakedret
+    - scopelint
 dupl:
   threshold: 50
 gocyclo:
