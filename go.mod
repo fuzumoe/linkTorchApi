@@ -2,7 +2,10 @@ module github.com/fuzumoe/urlinsight-backend
 
 go 1.23.4
 
-require gorm.io/gorm v1.30.0
+require (
+	github.com/joho/godotenv v1.5.1
+	gorm.io/gorm v1.30.0
+)
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
