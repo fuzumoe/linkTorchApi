@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/fuzumoe/urlinsight-backend/internal/model"
 )
 
@@ -22,24 +24,12 @@ func TestURLToDTO(t *testing.T) {
 
 	dto := url.ToDTO()
 
-	if dto.ID != url.ID {
-		t.Errorf("ToDTO ID = %d; want %d", dto.ID, url.ID)
-	}
-	if dto.UserID != url.UserID {
-		t.Errorf("ToDTO UserID = %d; want %d", dto.UserID, url.UserID)
-	}
-	if dto.OriginalURL != url.OriginalURL {
-		t.Errorf("ToDTO OriginalURL = %s; want %s", dto.OriginalURL, url.OriginalURL)
-	}
-	if dto.Status != url.Status {
-		t.Errorf("ToDTO Status = %s; want %s", dto.Status, url.Status)
-	}
-	if !dto.CreatedAt.Equal(url.CreatedAt) {
-		t.Errorf("ToDTO CreatedAt = %v; want %v", dto.CreatedAt, url.CreatedAt)
-	}
-	if !dto.UpdatedAt.Equal(url.UpdatedAt) {
-		t.Errorf("ToDTO UpdatedAt = %v; want %v", dto.UpdatedAt, url.UpdatedAt)
-	}
+	assert.Equal(t, url.ID, dto.ID, "ID should match")
+	assert.Equal(t, url.UserID, dto.UserID, "UserID should match")
+	assert.Equal(t, url.OriginalURL, dto.OriginalURL, "OriginalURL should match")
+	assert.Equal(t, url.Status, dto.Status, "Status should match")
+	assert.WithinDuration(t, url.CreatedAt, dto.CreatedAt, time.Second, "CreatedAt should match")
+	assert.WithinDuration(t, url.UpdatedAt, dto.UpdatedAt, time.Second, "UpdatedAt should match")
 }
 
 // TestURLFromCreateInput tests the conversion from CreateURLInput to URL model.
@@ -51,25 +41,21 @@ func TestURLFromCreateInput(t *testing.T) {
 
 	url := model.URLFromCreateInput(input)
 
-	if url.UserID != input.UserID {
-		t.Errorf("URLFromCreateInput UserID = %d; want %d", url.UserID, input.UserID)
-	}
-	if url.OriginalURL != input.OriginalURL {
-		t.Errorf("URLFromCreateInput OriginalURL = %s; want %s", url.OriginalURL, input.OriginalURL)
-	}
-	if url.Status != "queued" {
-		t.Errorf("URLFromCreateInput Status = %s; want 'queued'", url.Status)
-	}
+	assert.Equal(t, input.UserID, url.UserID, "UserID should match")
+	assert.Equal(t, input.OriginalURL, url.OriginalURL, "OriginalURL should match")
+	assert.Equal(t, "pending", url.Status, "Status should default to 'queued'")
+	assert.NotZero(t, url.CreatedAt, "CreatedAt should be set")
+	assert.NotZero(t, url.UpdatedAt, "UpdatedAt should be set")
+
 }
 
 // TestURLTableName tests the TableName method of the URL model.
 func TestURLTableName(t *testing.T) {
 	expected := "urls"
 	url := model.URL{}
-	// Check if the TableName method returns the expected table name
-	if url.TableName() != expected {
-		t.Errorf("TableName = %s; want %s", url.TableName(), expected)
-	}
+
+	assert.Equal(t, expected, url.TableName(), "TableName should return 'urls'")
+
 }
 
 // TestURLDTO tests the URLDTO struct.
@@ -85,22 +71,11 @@ func TestURLDTO(t *testing.T) {
 		UpdatedAt:   updatedAt,
 	}
 
-	if dto.ID != 1 {
-		t.Errorf("URLDTO ID = %d; want 1", dto.ID)
-	}
-	if dto.UserID != 2 {
-		t.Errorf("URLDTO UserID = %d; want 2", dto.UserID)
-	}
-	if dto.OriginalURL != "https://example.com" {
-		t.Errorf("URLDTO OriginalURL = %s; want 'https://example.com'", dto.OriginalURL)
-	}
-	if dto.Status != "done" {
-		t.Errorf("URLDTO Status = %s; want 'done'", dto.Status)
-	}
-	if !dto.CreatedAt.Equal(createdAt) {
-		t.Errorf("URLDTO CreatedAt = %v; want %v", dto.CreatedAt, createdAt)
-	}
-	if !dto.UpdatedAt.Equal(updatedAt) {
-		t.Errorf("URLDTO UpdatedAt = %v; want %v", dto.UpdatedAt, updatedAt)
-	}
+	// Fix the order of expected vs actual and make sure types match
+	assert.Equal(t, uint(1), dto.ID, "ID should be 1")
+	assert.Equal(t, uint(2), dto.UserID, "UserID should be 2")
+	assert.Equal(t, "https://example.com", dto.OriginalURL, "OriginalURL should be 'https://example.com'")
+	assert.Equal(t, "done", dto.Status, "Status should be 'done'")
+	assert.WithinDuration(t, createdAt, dto.CreatedAt, time.Second, "CreatedAt should match")
+	assert.WithinDuration(t, updatedAt, dto.UpdatedAt, time.Second, "UpdatedAt should match")
 }

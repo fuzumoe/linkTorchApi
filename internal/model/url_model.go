@@ -52,9 +52,12 @@ func (u *URL) ToDTO() *URLDTO {
 
 // FromCreateInput maps CreateURLInput to a URL model.
 func URLFromCreateInput(input *CreateURLInput) *URL {
+	now := time.Now()
 	return &URL{
 		UserID:      input.UserID,
 		OriginalURL: input.OriginalURL,
-		Status:      "queued",
+		Status:      "pending",
+		CreatedAt:   now,
+		UpdatedAt:   now,
 	}
 }
