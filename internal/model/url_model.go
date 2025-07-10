@@ -6,6 +6,13 @@ import (
 	"gorm.io/gorm"
 )
 
+const (
+	StatusQueued  = "queued"
+	StatusRunning = "running"
+	StatusDone    = "done"
+	StatusError   = "error"
+)
+
 // URL represents a URL to be analyzed and its processing status.
 type URL struct {
 	ID              uint             `gorm:"primaryKey;autoIncrement" json:"id"`
@@ -58,8 +65,13 @@ func URLFromCreateInput(input *CreateURLInput) *URL {
 	return &URL{
 		UserID:      input.UserID,
 		OriginalURL: input.OriginalURL,
-		Status:      "pending",
+		Status:      StatusQueued,
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}
+}
+
+type UpdateURLInput struct {
+	OriginalURL string `json:"original_url" binding:"omitempty,url"`
+	Status      string `json:"status"        binding:"omitempty,oneof=queued running done error"`
 }
