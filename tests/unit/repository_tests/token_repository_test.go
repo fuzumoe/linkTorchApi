@@ -40,7 +40,7 @@ func TestTokenRepo(t *testing.T) {
 		}
 
 		mock.ExpectBegin()
-		// Match the upsert query with ON CONFLICT clause
+		// Match the upsert query with ON CONFLICT clause.
 		exec := mock.ExpectExec(regexp.QuoteMeta(
 			"INSERT INTO `blacklisted_tokens` (`jti`,`expires_at`,`created_at`,`deleted_at`) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE `expires_at`=VALUES(`expires_at`)",
 		))
@@ -63,7 +63,7 @@ func TestTokenRepo(t *testing.T) {
 		repo := repository.NewTokenRepo(db)
 		jti := "existing-jwt-id"
 
-		// Fix: Update the query regex to match the actual SQL with parentheses
+		// Fix: Update the query regex to match the actual SQL with parentheses.
 		mock.ExpectQuery(regexp.QuoteMeta(
 			"SELECT count(*) FROM `blacklisted_tokens` WHERE (jti = ? AND expires_at > ?) AND `blacklisted_tokens`.`deleted_at` IS NULL",
 		)).WithArgs(jti, sqlmock.AnyArg()).WillReturnRows(
@@ -81,7 +81,7 @@ func TestTokenRepo(t *testing.T) {
 		repo := repository.NewTokenRepo(db)
 		jti := "non-existing-jwt-id"
 
-		// Fix: Update the query regex to match the actual SQL with parentheses
+		// Fix: Update the query regex to match the actual SQL with parentheses.
 		mock.ExpectQuery(regexp.QuoteMeta(
 			"SELECT count(*) FROM `blacklisted_tokens` WHERE (jti = ? AND expires_at > ?) AND `blacklisted_tokens`.`deleted_at` IS NULL",
 		)).WithArgs(jti, sqlmock.AnyArg()).WillReturnRows(
@@ -99,7 +99,7 @@ func TestTokenRepo(t *testing.T) {
 		repo := repository.NewTokenRepo(db)
 		jti := "error-jwt-id"
 
-		// Fix: Update the query regex to match the actual SQL with parentheses
+		// Fix: Update the query regex to match the actual SQL with parentheses.
 		mock.ExpectQuery(regexp.QuoteMeta(
 			"SELECT count(*) FROM `blacklisted_tokens` WHERE (jti = ? AND expires_at > ?) AND `blacklisted_tokens`.`deleted_at` IS NULL",
 		)).WithArgs(jti, sqlmock.AnyArg()).WillReturnError(gorm.ErrInvalidDB)
@@ -121,7 +121,7 @@ func TestTokenRepo(t *testing.T) {
 		)).WithArgs(
 			sqlmock.AnyArg(),
 			sqlmock.AnyArg(),
-		).WillReturnResult(sqlmock.NewResult(0, 5)) // 5 rows deleted
+		).WillReturnResult(sqlmock.NewResult(0, 5))
 		mock.ExpectCommit()
 
 		err := repo.RemoveExpired()

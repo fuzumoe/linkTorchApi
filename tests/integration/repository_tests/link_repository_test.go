@@ -14,7 +14,7 @@ import (
 )
 
 func TestLinkRepo_Integration(t *testing.T) {
-	// Get a clean database state
+	// Get a clean database state.
 	db := integration.SetupTest(t)
 
 	// Create repositories
@@ -22,10 +22,10 @@ func TestLinkRepo_Integration(t *testing.T) {
 	urlRepo := repository.NewURLRepo(db)
 	userRepo := repository.NewUserRepo(db)
 
-	// Define a default pagination (Page 1, PageSize 10)
+	// Define a default pagination (Page 1, PageSize 10).
 	defaultPage := repository.Pagination{Page: 1, PageSize: 10}
 
-	// First create a test user and URL (needed for Link foreign key)
+	// First create a test user and URL.
 	testUser := &model.User{
 		Username: "linkowner",
 		Email:    "linkowner@example.com",
@@ -44,7 +44,7 @@ func TestLinkRepo_Integration(t *testing.T) {
 	require.NoError(t, err, "Should create URL without error")
 	require.NotZero(t, testURL.ID, "URL ID should be set")
 
-	// Test Link data
+	// Test Link data.
 	testLink := &model.Link{
 		URLID:      testURL.ID,
 		Href:       "https://linked-site.com",
@@ -61,7 +61,7 @@ func TestLinkRepo_Integration(t *testing.T) {
 	})
 
 	t.Run("ListByURL", func(t *testing.T) {
-		// Create another link for the same URL
+		// Create another link for the same URL.
 		secondLink := &model.Link{
 			URLID:      testURL.ID,
 			Href:       "https://second-link.com",
@@ -71,7 +71,7 @@ func TestLinkRepo_Integration(t *testing.T) {
 		err := linkRepo.Create(secondLink)
 		require.NoError(t, err, "Should create second Link")
 
-		// Create another URL and a link for it
+		// Create another URL and a link for it.
 		anotherURL := &model.URL{
 			UserID:      testUser.ID,
 			OriginalURL: "https://another-example.com",
@@ -89,17 +89,17 @@ func TestLinkRepo_Integration(t *testing.T) {
 		err = linkRepo.Create(otherURLLink)
 		require.NoError(t, err, "Should create Link for other URL")
 
-		// Test listing links for our test URL using default pagination
+		// Test listing links for our test URL using default pagination.
 		links, err := linkRepo.ListByURL(testURL.ID, defaultPage)
 		require.NoError(t, err, "Should list Links by URL")
 		assert.Len(t, links, 2, "Should have 2 Links for test URL")
 
-		// Verify the returned Links belong to our test URL
+		// Verify the returned Links belong to our test URL.
 		for _, l := range links {
 			assert.Equal(t, testURL.ID, l.URLID, "Link should belong to test URL")
 		}
 
-		// Test listing for the other URL
+		// Test listing for the other URL.
 		otherURLLinks, err := linkRepo.ListByURL(anotherURL.ID, defaultPage)
 		require.NoError(t, err, "Should list Links for other URL")
 		assert.Len(t, otherURLLinks, 1, "Should have 1 Link for other URL")
@@ -115,7 +115,7 @@ func TestLinkRepo_Integration(t *testing.T) {
 		err := linkRepo.Update(testLink)
 		require.NoError(t, err, "Should update Link without error")
 
-		// Verify the changes were saved by fetching the updated links for the URL
+		// Verify the changes were saved by fetching the updated links for the URL.
 		updatedLinks, err := linkRepo.ListByURL(testURL.ID, defaultPage)
 		require.NoError(t, err, "Should list updated Links")
 
@@ -136,7 +136,7 @@ func TestLinkRepo_Integration(t *testing.T) {
 		err := linkRepo.Delete(testLink)
 		require.NoError(t, err, "Should delete Link without error")
 
-		// Verify the Link was deleted by listing remaining links
+		// Verify the Link was deleted by listing remaining links.
 		remainingLinks, err := linkRepo.ListByURL(testURL.ID, defaultPage)
 		require.NoError(t, err, "Should list remaining links")
 		for _, link := range remainingLinks {
@@ -144,7 +144,7 @@ func TestLinkRepo_Integration(t *testing.T) {
 		}
 	})
 
-	// Optional: additional pagination test
+	// additional pagination test.
 	t.Run("Pagination", func(t *testing.T) {
 		// Create extra links to test pagination behavior.
 		for i := 0; i < 5; i++ {
@@ -158,7 +158,7 @@ func TestLinkRepo_Integration(t *testing.T) {
 			require.NoError(t, err, "Should create paginated link")
 		}
 
-		// Request page 2 with page size 3
+		// Request page 2 with page size 3.
 		p2 := repository.Pagination{Page: 2, PageSize: 3}
 		pagedLinks, err := linkRepo.ListByURL(testURL.ID, p2)
 		require.NoError(t, err, "Should list paginated links")
