@@ -14,7 +14,7 @@ import (
 	"github.com/fuzumoe/urlinsight-backend/internal/service"
 )
 
-// MockUserRepo is a mock implementation of UserRepository
+// MockUserRepo is a mock implementation of UserRepository.
 type MockUserRepo struct {
 	mock.Mock
 }
@@ -51,11 +51,11 @@ func (m *MockUserRepo) Delete(id uint) error {
 }
 
 func TestUserService_Register(t *testing.T) {
-	// Setup
+	// Setup.
 	mockRepo := new(MockUserRepo)
 	svc := service.NewUserService(mockRepo)
 
-	// Test data
+	// Test data.
 	input := &model.CreateUserInput{
 		Username: "testuser",
 		Email:    "test@example.com",
@@ -63,21 +63,21 @@ func TestUserService_Register(t *testing.T) {
 	}
 
 	t.Run("Success", func(t *testing.T) {
-		// Setup expectations
+		// Setup expectations.
 		mockRepo.On("FindByEmail", input.Email).Return(nil, errors.New("not found")).Once()
 		mockRepo.On("Create", mock.AnythingOfType("*model.User")).Run(func(args mock.Arguments) {
-			// Verify password was hashed
+			// Verify password was hashed.
 			user := args.Get(0).(*model.User)
 			assert.NotEqual(t, input.Password, user.Password, "Password should be hashed")
 
-			// Set the ID as if it was saved to DB
+			// Set the ID as if it was saved to DB.
 			user.ID = 1
 		}).Return(nil).Once()
 
-		// Execute
+		// Execute.
 		dto, err := svc.Register(input)
 
-		// Verify
+		// Verify.
 		require.NoError(t, err)
 		assert.NotNil(t, dto)
 		assert.Equal(t, uint(1), dto.ID)
@@ -88,7 +88,7 @@ func TestUserService_Register(t *testing.T) {
 	})
 
 	t.Run("Email Already Exists", func(t *testing.T) {
-		// Setup expectations - simulate finding existing user
+		// Setup expectations - simulate finding existing user.
 		existingUser := &model.User{
 			ID:       1,
 			Username: "existing",
@@ -97,10 +97,10 @@ func TestUserService_Register(t *testing.T) {
 		}
 		mockRepo.On("FindByEmail", input.Email).Return(existingUser, nil).Once()
 
-		// Execute
+		// Execute.
 		dto, err := svc.Register(input)
 
-		// Verify
+		// Verify.
 		assert.Error(t, err)
 		assert.Equal(t, "email already in use", err.Error())
 		assert.Nil(t, dto)
@@ -108,14 +108,14 @@ func TestUserService_Register(t *testing.T) {
 	})
 
 	t.Run("Repository Error", func(t *testing.T) {
-		// Setup expectations
+		// Setup expectations.
 		mockRepo.On("FindByEmail", input.Email).Return(nil, errors.New("not found")).Once()
 		mockRepo.On("Create", mock.AnythingOfType("*model.User")).Return(errors.New("db error")).Once()
 
-		// Execute
+		// Execute.
 		dto, err := svc.Register(input)
 
-		// Verify
+		// Verify.
 		assert.Error(t, err)
 		assert.Equal(t, "db error", err.Error())
 		assert.Nil(t, dto)
