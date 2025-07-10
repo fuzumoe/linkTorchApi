@@ -5,12 +5,13 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/fuzumoe/urlinsight-backend/internal/model"
 	"github.com/fuzumoe/urlinsight-backend/internal/repository"
-	"github.com/stretchr/testify/assert"
 )
 
-// mockMigrator implements the Migrator interface for testing.
+// mockMigrator implements the necessary AutoMigrate interface for testing.
 type mockMigrator struct {
 	calledWith []interface{}
 	errOn      interface{} // if model matches this, return error
@@ -19,6 +20,7 @@ type mockMigrator struct {
 func (m *mockMigrator) AutoMigrate(dst ...interface{}) error {
 	m.calledWith = append(m.calledWith, dst[0])
 	if m.errOn != nil && reflect.TypeOf(dst[0]) == reflect.TypeOf(m.errOn) {
+		// Return error with a message that will be wrapped by repository.Migrate
 		return fmt.Errorf("fail on %T", dst[0])
 	}
 	return nil
@@ -46,16 +48,10 @@ func TestMigrate_Error(t *testing.T) {
 	mm := &mockMigrator{errOn: failModel}
 	err := repository.Migrate(mm)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "fail on *model.URL")
+	// Check that error message contains both the auto-migrate prefix and our simulated error
+	assert.Contains(t, err.Error(), "auto-migrate", "error message should contain 'auto-migrate'")
+	assert.Contains(t, err.Error(), "fail on *model.URL", "error should indicate failure on *model.URL")
 
-	// ensure migrator was called up to the failing model
-	var count int
-	for _, inst := range mm.calledWith {
-		if reflect.TypeOf(inst) == reflect.TypeOf(failModel) {
-			break
-		}
-		count++
-	}
-	// should have been called at least once before URL if URL is first, but simple check
+	// Ensure migrator was called at least once
 	assert.Greater(t, len(mm.calledWith), 0, "should have attempted migrations before erroring")
 }

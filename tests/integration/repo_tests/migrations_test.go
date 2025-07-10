@@ -8,42 +8,42 @@ import (
 
 	"github.com/fuzumoe/urlinsight-backend/internal/model"
 	"github.com/fuzumoe/urlinsight-backend/internal/repository"
-	"github.com/fuzumoe/urlinsight-backend/tests/integration" // <- Add this import
+	"github.com/fuzumoe/urlinsight-backend/tests/integration"
 )
 
-// TestMain handles setup and teardown for all integration tests
-func TestMain(m *testing.M) {
-	// Use the setup functions
+// TestMigrate_MySQLIntegration tests the migration process against a real MySQL database.
+func TestMigrate_MySQLIntegration(t *testing.T) {
+	dsn := os.Getenv("TEST_MYSQL_DSN")
+	if dsn == "" {
+		dsn = "urlinsight_user:secret@tcp(localhost:3309)/urlinsight_test?parseTime=true"
+		t.Log("TEST_MYSQL_DSN not set, using fallback DSN:", dsn)
+	}
+
 	if err := integration.InitTestSuite(); err != nil {
 		println("Failed to setup test suite:", err.Error())
 		os.Exit(1)
 	}
 
-	code := m.Run()
-
-	integration.CleanupTestSuite()
-	os.Exit(code)
-}
-
-func TestMigrate_MySQLIntegration(t *testing.T) {
 	// Ensure the test database is available; panic if not.
 	integration.CheckDBAvailability()
 
 	// Setup: Get clean database
 	db := integration.SetupTest(t)
 
-	// Test: Run migrations
-	err := repository.Migrate(db)
+	// Get the Migrator from *gorm.DB (this implements the repository.Migrator interface)
+	migrator := db.Migrator()
+
+	// Test: Run migrations using the migrator
+	err := repository.Migrate(migrator)
 	assert.NoError(t, err, "migrations should run without error")
 
 	// Verify: Each model's table exists
-	migrator := db.Migrator()
-	for _, m := range model.AllModels {
-		exists := migrator.HasTable(m)
-		assert.Truef(t, exists, "table for model %T should exist after migration", m)
+	for _, mdl := range model.AllModels {
+		exists := migrator.HasTable(mdl)
+		assert.Truef(t, exists, "table for model %T should exist after migration", mdl)
 	}
 
 	// Test: Migrations are idempotent
-	err = repository.Migrate(db)
+	err = repository.Migrate(migrator)
 	assert.NoError(t, err, "migrations should be idempotent")
 }
