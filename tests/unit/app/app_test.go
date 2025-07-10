@@ -20,14 +20,14 @@ var (
 	origMigrateDB  = app.MigrateDB
 )
 
-// setupHooks replaces the hooks for a successful run
+// setupHooks replaces the hooks for a successful run.
 func setupHooks(t *testing.T) {
 	app.LoadConfig = func() (*configs.Config, error) {
 		return &configs.Config{DatabaseURL: "dsn"}, nil
 	}
 	app.NewDB = func(dsn string) (*gorm.DB, error) {
 		assert.Equal(t, "dsn", dsn)
-		// Return a dummy *gorm.DB; MigrateDB stub won't use it
+
 		return &gorm.DB{}, nil
 	}
 	app.MigrateDB = func(m repository.Migrator) error {
@@ -35,53 +35,58 @@ func setupHooks(t *testing.T) {
 	}
 }
 
-// teardownHooks restores original hook functions
+// teardownHooks restores original hook functions.
 func teardownHooks() {
 	app.LoadConfig = origLoadConfig
 	app.NewDB = origNewDB
 	app.MigrateDB = origMigrateDB
 }
 
-func TestRun_Success(t *testing.T) {
-	setupHooks(t)
-	defer teardownHooks()
+func TestRun(t *testing.T) {
+	t.Run("Success", func(t *testing.T) {
+		setupHooks(t)
+		defer teardownHooks()
 
-	err := app.Run()
-	require.NoError(t, err)
-}
+		err := app.Run()
+		require.NoError(t, err)
+	})
 
-func TestRun_ConfigError(t *testing.T) {
-	setupHooks(t)
-	app.LoadConfig = func() (*configs.Config, error) {
-		return nil, errors.New("fail load")
-	}
-	defer teardownHooks()
+	t.Run("Config Error", func(t *testing.T) {
+		setupHooks(t)
+		// simulate configuration load error
+		app.LoadConfig = func() (*configs.Config, error) {
+			return nil, errors.New("fail load")
+		}
+		defer teardownHooks()
 
-	err := app.Run()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "config load error")
-}
+		err := app.Run()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "config load error")
+	})
 
-func TestRun_DBError(t *testing.T) {
-	setupHooks(t)
-	app.NewDB = func(dsn string) (*gorm.DB, error) {
-		return nil, errors.New("fail db")
-	}
-	defer teardownHooks()
+	t.Run("DB Error", func(t *testing.T) {
+		setupHooks(t)
+		// simulate database connection error
+		app.NewDB = func(dsn string) (*gorm.DB, error) {
+			return nil, errors.New("fail db")
+		}
+		defer teardownHooks()
 
-	err := app.Run()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "db init error")
-}
+		err := app.Run()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "db init error")
+	})
 
-func TestRun_MigrateError(t *testing.T) {
-	setupHooks(t)
-	app.MigrateDB = func(m repository.Migrator) error {
-		return errors.New("fail migrate")
-	}
-	defer teardownHooks()
+	t.Run("Migrate Error", func(t *testing.T) {
+		setupHooks(t)
+		// simulate migration error
+		app.MigrateDB = func(m repository.Migrator) error {
+			return errors.New("fail migrate")
+		}
+		defer teardownHooks()
 
-	err := app.Run()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "migration error")
+		err := app.Run()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "migration error")
+	})
 }
