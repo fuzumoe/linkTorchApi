@@ -12,6 +12,21 @@ import (
 	"github.com/fuzumoe/urlinsight-backend/tests/integration"
 )
 
+func TestMain(m *testing.M) {
+	// Initialize the test database
+	if err := integration.InitTestSuite(); err != nil {
+		println("Failed to setup test suite:", err.Error())
+		os.Exit(1)
+	}
+
+	// Run tests
+	code := m.Run()
+
+	// Clean up
+	integration.CleanupTestSuite()
+	os.Exit(code)
+}
+
 // TestNewDB_Integration tests the NewDB function with a real MySQL database connection.
 func TestNewDB_Integration(t *testing.T) {
 	// fallback DSN if env var isn’t set
@@ -25,6 +40,8 @@ func TestNewDB_Integration(t *testing.T) {
 		println("Failed to setup test suite:", err.Error())
 		os.Exit(1)
 	}
+	// Ensure the test database is available; panic if not.
+	integration.CheckDBAvailability()
 
 	db, err := repository.NewDB(dsn)
 	require.NoError(t, err, "NewDB should not return an error")
@@ -40,5 +57,4 @@ func TestNewDB_Integration(t *testing.T) {
 	stats := sqlDB.Stats()
 	assert.Greater(t, stats.OpenConnections, 0, "Should have at least one open connection")
 
-	integration.CleanupTestSuite()
 }

@@ -164,6 +164,7 @@ func getEnvOrDefault(key, defaultValue string) string {
 }
 
 // CleanupTestSuite cleans up the test suite.
+// CleanupTestSuite cleans up the test suite.
 func CleanupTestSuite() {
 	if testDB == nil {
 		return
@@ -252,4 +253,31 @@ func CheckDBAvailability() {
 // GetTestDB returns the test database instance.
 func GetTestDB() *gorm.DB {
 	return testDB
+}
+
+// RemoveTestDatabase connects as root and drops the test database.
+func RemoveTestDatabase(t require.TestingT) {
+	if testDB == nil {
+		return
+	}
+	// Close the test database connection.
+	if sqlDB, err := testDB.DB(); err == nil {
+		sqlDB.Close()
+	}
+
+	// Reconnect using root credentials.
+	rootDB, err := gorm.Open(mysql.Open(rootDSN), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
+	require.NoError(t, err, "failed to connect to MySQL root for drop operation")
+	defer func() {
+		if sqlDB, err := rootDB.DB(); err == nil {
+			sqlDB.Close()
+		}
+	}()
+
+	// Drop the test database.
+	err = rootDB.Exec(fmt.Sprintf("DROP DATABASE IF EXISTS `%s`", testDBName)).Error
+	require.NoError(t, err, "failed to drop test database")
+	fmt.Printf("✓ Test database '%s' dropped successfully\n", testDBName)
 }

@@ -37,16 +37,16 @@ func TestAppRun_Integration(t *testing.T) {
 	sqlDB, err := db.DB()
 	require.NoError(t, err)
 
-	// // Get the DSN from the test database
-	// dsn := os.Getenv("DATABASE_URL")
-	// if dsn == "" {
-	// 	// If not set, use a default based on test configuration
-	// 	dsn = os.Getenv("TEST_MYSQL_DSN")
-	// 	if dsn == "" {
-	// 		dsn = "urlinsight_user:secret@tcp(localhost:3309)/urlinsight_test?parseTime=true"
-	// 	}
-	// 	os.Setenv("DATABASE_URL", dsn)
-	// }
+	// Get the DSN from the test database
+	dsn := os.Getenv("DATABASE_URL")
+	if dsn == "" {
+		// If not set, use a default based on test configuration
+		dsn = os.Getenv("TEST_MYSQL_DSN")
+		if dsn == "" {
+			dsn = "urlinsight_user:secret@tcp(localhost:3309)/urlinsight_test?parseTime=true"
+		}
+		os.Setenv("DATABASE_URL", dsn)
+	}
 
 	// Close the existing connection to allow app.Run() to create its own
 	sqlDB.Close()
@@ -58,4 +58,5 @@ func TestAppRun_Integration(t *testing.T) {
 	// Additional assertion - try to run it again to ensure idempotency
 	err = app.Run()
 	assert.NoError(t, err, "App should be able to run again (idempotent)")
+
 }

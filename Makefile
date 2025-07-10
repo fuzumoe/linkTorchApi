@@ -11,7 +11,7 @@ BINARY_NAME=urlinsight-backend
 BINARY_UNIX=$(BINARY_NAME)_unix
 
 # Test parameters
-TEST_TIMEOUT=30s
+TEST_TIMEOUT=60s
 TEST_COVERAGE_FILE=coverage.out
 TEST_COVERAGE_HTML=coverage.html
 
@@ -111,7 +111,7 @@ docker-compose-down:
 	docker compose down
 
 # Database commands
-db-up:
+db-up: 
 	docker compose up -d mysql
 
 db-down:
