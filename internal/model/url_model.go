@@ -8,13 +8,15 @@ import (
 
 // URL represents a URL to be analyzed and its processing status.
 type URL struct {
-	ID          uint           `gorm:"primaryKey;autoIncrement" json:"id"`
-	UserID      uint           `gorm:"not null;index" json:"user_id"`
-	OriginalURL string         `gorm:"type:varchar(191);uniqueIndex;not null" json:"original_url"`
-	Status      string         `gorm:"type:enum('queued','running','done','error');default:'queued';not null" json:"status"`
-	CreatedAt   time.Time      `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt   time.Time      `gorm:"autoUpdateTime" json:"updated_at"`
-	DeletedAt   gorm.DeletedAt `gorm:"index" json:"-"`
+	ID              uint             `gorm:"primaryKey;autoIncrement" json:"id"`
+	UserID          uint             `gorm:"not null;index" json:"user_id"`
+	OriginalURL     string           `gorm:"type:varchar(191);uniqueIndex;not null" json:"original_url"`
+	Status          string           `gorm:"type:enum('queued','running','done','error');default:'queued';not null" json:"status"`
+	AnalysisResults []AnalysisResult `gorm:"foreignKey:URLID"`
+	Links           []Link           `gorm:"foreignKey:URLID"`
+	CreatedAt       time.Time        `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt       time.Time        `gorm:"autoUpdateTime" json:"updated_at"`
+	DeletedAt       gorm.DeletedAt   `gorm:"index" json:"-"`
 }
 
 // TableName returns the name of the table for URL.
