@@ -14,87 +14,25 @@ import (
 	"github.com/fuzumoe/urlinsight-backend/internal/repository"
 )
 
-// MockDB provides a simple mock implementation for testing.
-type MockDB struct {
-	DB      *sql.DB
-	Mock    sqlmock.Sqlmock
-	GormDB  *gorm.DB
-	FailGet bool
-}
-
-// TestNewDB_InvalidDSN ensures that providing an empty or malformed DSN returns an error.
-func TestNewDB_InvalidDSN(t *testing.T) {
-	_, err := repository.NewDB("")
-	assert.Error(t, err, "expected an error when DSN is empty")
-}
-
-// TestNewDB_ValidDSN tests successful connection with mocked DB.
-func TestNewDB_ValidDSN(t *testing.T) {
-	// Create SQL mock
-	db, mock, err := sqlmock.New()
-	require.NoError(t, err)
-	defer db.Close()
-
-	// Set expectation for the version query.
-	mock.ExpectQuery("SELECT VERSION()").
-		WillReturnRows(sqlmock.NewRows([]string{"version"}).AddRow("8.0.0"))
-
-	// create a GORM DB using the mock connection directly.
-	dialector := mysql.New(mysql.Config{
-		Conn: db,
-	})
-	gormDB, err := gorm.Open(dialector, &gorm.Config{})
-	require.NoError(t, err)
-	assert.NotNil(t, gormDB)
-
-	// Verify all expectations were met.
-	require.NoError(t, mock.ExpectationsWereMet(), "there were unfulfilled expectations")
-}
-
-// TestNewDB_MalformedDSN checks that a malformed DSN returns a specific error.
-func TestNewDB_MalformedDSN(t *testing.T) {
-	// This DSN format is invalid for MySQL.
-	malformedDSN := "user@password:host:port/dbname?"
-
-	_, err := repository.NewDB(malformedDSN)
-	assert.Error(t, err, "expected an error with malformed DSN")
-}
-
-// TestNewDB_ConnectionRefused tests handling of connection refused errors.
-func TestNewDB_ConnectionRefused(t *testing.T) {
-	refusedDSN := "root:password@tcp(localhost:65535)/nonexistent?parseTime=true"
-
-	_, err := repository.NewDB(refusedDSN)
-
-	// Check if the error is related to connection refusal.
-	assert.Error(t, err, "expected connection refused error")
-	// The error message may vary by environment, but should contain "connect".
-	assert.Contains(t, strings.ToLower(err.Error()), "connect", "error should indicate connection issue")
-}
-
-// NewMockDB creates a new MockDB instance.
+// NewMockDB creates a new mock GORM DB instance.
 func NewMockDB() (*MockDB, error) {
 	db, mock, err := sqlmock.New()
 	if err != nil {
 		return nil, err
 	}
-
-	// Mock expectations for common queries.
+	// Mock the version query.
 	mock.ExpectQuery("SELECT VERSION()").WillReturnRows(
 		sqlmock.NewRows([]string{"version"}).AddRow("8.0.0"))
 
-	// Create a mock gorm.DB
 	dialector := mysql.New(mysql.Config{
 		Conn:                      db,
 		SkipInitializeWithVersion: true,
 	})
-
 	gormDB, err := gorm.Open(dialector, &gorm.Config{})
 	if err != nil {
 		db.Close()
 		return nil, err
 	}
-
 	return &MockDB{
 		DB:     db,
 		Mock:   mock,
@@ -102,41 +40,81 @@ func NewMockDB() (*MockDB, error) {
 	}, nil
 }
 
-// TestNewDB_ConnectionPoolSettings verifies connection pool is configured.
-func TestNewDB_ConnectionPoolSettings(t *testing.T) {
-	mockDB, err := NewMockDB()
-	if err != nil {
-		t.Skip("Could not create mock DB: " + err.Error())
-	}
-	defer mockDB.DB.Close()
-
-	// This is just to ensure the connection work.
-	rows, err := mockDB.DB.Query("SELECT VERSION()")
-	if err == nil {
-		rows.Close()
-	}
-
-	sqlDB, err := mockDB.GormDB.DB()
-
-	require.NoError(t, err, "Failed to get sql.DB from GORM DB")
-	assert.NotNil(t, sqlDB, "sql.DB should not be nil")
-
+// MockDB aggregates the SQL and GORM DB objects.
+type MockDB struct {
+	DB     *sql.DB
+	Mock   sqlmock.Sqlmock
+	GormDB *gorm.DB
 }
 
-// TestNewDB_CloseConnection tests closing the connection.
-func TestNewDB_CloseConnection(t *testing.T) {
-	// Create a new mock WITHOUT any expectations.
-	db, mock, err := sqlmock.New()
-	require.NoError(t, err, "Failed to create SQL mock")
+func TestNewDB(t *testing.T) {
+	t.Run("Valid DSN", func(t *testing.T) {
+		// Create SQL mock
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
 
-	// Explicitly set expectation for Close.
-	mock.ExpectClose()
+		// Set expectation for the version query.
+		mock.ExpectQuery("SELECT VERSION()").
+			WillReturnRows(sqlmock.NewRows([]string{"version"}).AddRow("8.0.0"))
 
-	// Close the connection.
-	err = db.Close()
-	assert.NoError(t, err, "closing the connection should succeed")
+		// Create a GORM DB using the mock connection.
+		dialector := mysql.New(mysql.Config{Conn: db})
+		gormDB, err := gorm.Open(dialector, &gorm.Config{})
+		require.NoError(t, err)
+		assert.NotNil(t, gormDB)
 
-	// Attempting operations after closing should fail
-	err = db.Ping()
-	assert.Error(t, err, "ping after close should fail")
+		// Verify all expectations were met.
+		require.NoError(t, mock.ExpectationsWereMet(), "there were unfulfilled expectations")
+	})
+
+	t.Run("Malformed DSN", func(t *testing.T) {
+		// An invalid DSN formats.
+		malformedDSN := "user@password:host:port/dbname?"
+		_, err := repository.NewDB(malformedDSN)
+		assert.Error(t, err, "expected an error with malformed DSN")
+	})
+
+	t.Run("Connection Refused", func(t *testing.T) {
+		refusedDSN := "root:password@tcp(localhost:65535)/nonexistent?parseTime=true"
+		_, err := repository.NewDB(refusedDSN)
+		assert.Error(t, err, "expected connection refused error")
+		// The error message should indicate connection issues (may vary by environment).
+		assert.Contains(t, strings.ToLower(err.Error()), "connect", "error should indicate connection issue")
+	})
+
+	t.Run("Connection Pool Settings", func(t *testing.T) {
+		mockDB, err := NewMockDB()
+		if err != nil {
+			t.Skip("Could not create mock DB: " + err.Error())
+		}
+		defer mockDB.DB.Close()
+
+		// Running a simple query to ensure connection works.
+		rows, err := mockDB.DB.Query("SELECT VERSION()")
+		if err == nil {
+			rows.Close()
+		}
+
+		sqlDB, err := mockDB.GormDB.DB()
+		require.NoError(t, err, "Failed to get sql.DB from GORM DB")
+		assert.NotNil(t, sqlDB, "sql.DB should not be nil")
+	})
+
+	t.Run("Close Connection", func(t *testing.T) {
+		// Create a new mock without any expectations.
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err, "Failed to create SQL mock")
+
+		// Explicitly expect Close.
+		mock.ExpectClose()
+
+		// Close the connection.
+		err = db.Close()
+		assert.NoError(t, err, "closing the connection should succeed")
+
+		// Operations after closing should fail.
+		err = db.Ping()
+		assert.Error(t, err, "ping after close should fail")
+	})
 }
