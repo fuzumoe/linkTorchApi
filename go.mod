@@ -3,6 +3,7 @@ module github.com/fuzumoe/urlinsight-backend
 go 1.23.4
 
 require (
+	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/joho/godotenv v1.5.1
 	gorm.io/driver/mysql v1.6.0
 	gorm.io/gorm v1.30.0
