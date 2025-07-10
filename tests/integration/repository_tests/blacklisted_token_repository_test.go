@@ -1,166 +1,102 @@
 package repository_test
 
 import (
-	"regexp"
 	"testing"
 	"time"
 
-	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 
 	"github.com/fuzumoe/urlinsight-backend/internal/model"
 	"github.com/fuzumoe/urlinsight-backend/internal/repository"
+	"github.com/fuzumoe/urlinsight-backend/tests/integration"
 )
 
-// setupBlMockDB initializes a GORM DB backed by sqlmock.
-func setupBlMockDB(t *testing.T) (*gorm.DB, sqlmock.Sqlmock) {
-	db, mock, err := sqlmock.New()
-	require.NoError(t, err)
+func TestBlacklistedTokenRepo_Integration(t *testing.T) {
+	// Get a clean database state
+	db := integration.SetupTest(t)
 
-	gormDB, err := gorm.Open(mysql.New(mysql.Config{
-		Conn:                      db,
-		SkipInitializeWithVersion: true,
-	}), &gorm.Config{})
-	require.NoError(t, err)
+	// Create the token repository
+	tokenRepo := repository.NewBlacklistedTokenRepo(db)
 
-	return gormDB, mock
+	// Test data
+	testToken := &model.BlacklistedToken{
+		JTI:       "test-jwt-id-123",
+		ExpiresAt: time.Now().Add(24 * time.Hour),
+	}
+
+	t.Run("Create", func(t *testing.T) {
+		err := tokenRepo.Create(testToken)
+		require.NoError(t, err, "Should create token without error")
+		assert.NotZero(t, testToken.ID, "Token ID should be set after creation")
+		assert.False(t, testToken.CreatedAt.IsZero(), "CreatedAt should be set")
+	})
+
+	t.Run("Exists", func(t *testing.T) {
+		// Check that the token we just created exists
+		exists, err := tokenRepo.Exists(testToken.JTI)
+		require.NoError(t, err, "Should check existence without error")
+		assert.True(t, exists, "Token should exist in the blacklist")
+
+		// Check that a non-existent token doesn't exist
+		exists, err = tokenRepo.Exists("non-existent-token")
+		require.NoError(t, err, "Should check non-existence without error")
+		assert.False(t, exists, "Non-existent token should not exist in the blacklist")
+	})
+
+	t.Run("DeleteExpired", func(t *testing.T) {
+		// Create an expired token (expiry time in the past)
+		expiredToken := &model.BlacklistedToken{
+			JTI:       "expired-token-123",
+			ExpiresAt: time.Now().Add(-24 * time.Hour), // Yesterday
+		}
+		err := tokenRepo.Create(expiredToken)
+		require.NoError(t, err, "Should create expired token")
+
+		// Create another non-expired token
+		futureToken := &model.BlacklistedToken{
+			JTI:       "future-token-456",
+			ExpiresAt: time.Now().Add(48 * time.Hour), // 2 days from now
+		}
+		err = tokenRepo.Create(futureToken)
+		require.NoError(t, err, "Should create future token")
+
+		// Verify all tokens exist before deletion
+		count := countTokens(t, db)
+		assert.Equal(t, int64(3), count, "Should have 3 tokens before deletion")
+
+		// Delete expired tokens
+		err = tokenRepo.DeleteExpired()
+		require.NoError(t, err, "Should delete expired tokens without error")
+
+		// Verify only the expired token was deleted
+		count = countTokens(t, db)
+		assert.Equal(t, int64(2), count, "Should have 2 tokens after deletion")
+
+		// Verify the expired token no longer exists
+		exists, err := tokenRepo.Exists(expiredToken.JTI)
+		require.NoError(t, err, "Should check expired token existence without error")
+		assert.False(t, exists, "Expired token should not exist after deletion")
+
+		// Verify the future token still exists
+		exists, err = tokenRepo.Exists(futureToken.JTI)
+		require.NoError(t, err, "Should check future token existence without error")
+		assert.True(t, exists, "Future token should still exist after deletion")
+
+		// Verify the original token still exists
+		exists, err = tokenRepo.Exists(testToken.JTI)
+		require.NoError(t, err, "Should check original token existence without error")
+		assert.True(t, exists, "Original token should still exist after deletion")
+	})
+
+	integration.CleanTestData(t)
 }
 
-func TestBlacklistedTokenRepo(t *testing.T) {
-	t.Run("Create", func(t *testing.T) {
-		db, mock := setupBlMockDB(t)
-		repo := repository.NewBlacklistedTokenRepo(db)
-		expiryTime := time.Now().Add(24 * time.Hour)
-		testToken := &model.BlacklistedToken{
-			JTI:       "test-jwt-id-123",
-			ExpiresAt: expiryTime,
-		}
-
-		mock.ExpectBegin()
-		// Fix: Match the actual fields GORM is using
-		exec := mock.ExpectExec(regexp.QuoteMeta(
-			"INSERT INTO `blacklisted_tokens` (`jti`,`expires_at`,`created_at`,`deleted_at`) VALUES (?,?,?,?)",
-		))
-		exec.WithArgs(
-			testToken.JTI,
-			testToken.ExpiresAt,
-			sqlmock.AnyArg(),
-			sqlmock.AnyArg(),
-		)
-		exec.WillReturnResult(sqlmock.NewResult(1, 1))
-		mock.ExpectCommit()
-
-		err := repo.Create(testToken)
-		assert.NoError(t, err)
-		assert.Equal(t, uint(1), testToken.ID)
-		assert.NoError(t, mock.ExpectationsWereMet())
-	})
-
-	t.Run("Exists Found", func(t *testing.T) {
-		db, mock := setupBlMockDB(t)
-		repo := repository.NewBlacklistedTokenRepo(db)
-		jti := "existing-jwt-id"
-
-		mock.ExpectQuery(regexp.QuoteMeta(
-			"SELECT count(*) FROM `blacklisted_tokens` WHERE jti = ? AND `blacklisted_tokens`.`deleted_at` IS NULL",
-		)).WithArgs(jti).WillReturnRows(
-			sqlmock.NewRows([]string{"count(*)"}).AddRow(1),
-		)
-
-		exists, err := repo.Exists(jti)
-		assert.NoError(t, err)
-		assert.True(t, exists)
-		assert.NoError(t, mock.ExpectationsWereMet())
-	})
-
-	t.Run("Exists NotFound", func(t *testing.T) {
-		db, mock := setupBlMockDB(t)
-		repo := repository.NewBlacklistedTokenRepo(db)
-		jti := "non-existing-jwt-id"
-
-		mock.ExpectQuery(regexp.QuoteMeta(
-			"SELECT count(*) FROM `blacklisted_tokens` WHERE jti = ? AND `blacklisted_tokens`.`deleted_at` IS NULL",
-		)).WithArgs(jti).WillReturnRows(
-			sqlmock.NewRows([]string{"count(*)"}).AddRow(0),
-		)
-
-		exists, err := repo.Exists(jti)
-		assert.NoError(t, err)
-		assert.False(t, exists)
-		assert.NoError(t, mock.ExpectationsWereMet())
-	})
-
-	t.Run("Exists Error", func(t *testing.T) {
-		db, mock := setupBlMockDB(t)
-		repo := repository.NewBlacklistedTokenRepo(db)
-		jti := "error-jwt-id"
-
-		mock.ExpectQuery(regexp.QuoteMeta(
-			"SELECT count(*) FROM `blacklisted_tokens` WHERE jti = ? AND `blacklisted_tokens`.`deleted_at` IS NULL",
-		)).WithArgs(jti).WillReturnError(gorm.ErrInvalidDB)
-
-		exists, err := repo.Exists(jti)
-		assert.Error(t, err)
-		assert.False(t, exists)
-		assert.Equal(t, gorm.ErrInvalidDB, err)
-		assert.NoError(t, mock.ExpectationsWereMet())
-	})
-
-	t.Run("Delete Expired Success", func(t *testing.T) {
-		db, mock := setupBlMockDB(t)
-		repo := repository.NewBlacklistedTokenRepo(db)
-
-		mock.ExpectBegin()
-		// Fix: Match the soft delete that GORM is using
-		mock.ExpectExec(regexp.QuoteMeta(
-			"UPDATE `blacklisted_tokens` SET `deleted_at`=? WHERE expires_at < NOW() AND `blacklisted_tokens`.`deleted_at` IS NULL",
-		)).WithArgs(
-			sqlmock.AnyArg(),
-		).WillReturnResult(sqlmock.NewResult(0, 5)) // 5 rows deleted
-		mock.ExpectCommit()
-
-		err := repo.DeleteExpired()
-		assert.NoError(t, err)
-		assert.NoError(t, mock.ExpectationsWereMet())
-	})
-
-	t.Run("Delete Expired NoExpiredTokens", func(t *testing.T) {
-		db, mock := setupBlMockDB(t)
-		repo := repository.NewBlacklistedTokenRepo(db)
-
-		mock.ExpectBegin()
-		// Fix: Match the soft delete that GORM is using
-		mock.ExpectExec(regexp.QuoteMeta(
-			"UPDATE `blacklisted_tokens` SET `deleted_at`=? WHERE expires_at < NOW() AND `blacklisted_tokens`.`deleted_at` IS NULL",
-		)).WithArgs(
-			sqlmock.AnyArg(),
-		).WillReturnResult(sqlmock.NewResult(0, 0)) // 0 rows deleted
-		mock.ExpectCommit()
-
-		err := repo.DeleteExpired()
-		assert.NoError(t, err)
-		assert.NoError(t, mock.ExpectationsWereMet())
-	})
-
-	t.Run("Delete Expired Error", func(t *testing.T) {
-		db, mock := setupBlMockDB(t)
-		repo := repository.NewBlacklistedTokenRepo(db)
-
-		mock.ExpectBegin()
-		// Fix: Match the soft delete that GORM is using
-		mock.ExpectExec(regexp.QuoteMeta(
-			"UPDATE `blacklisted_tokens` SET `deleted_at`=? WHERE expires_at < NOW() AND `blacklisted_tokens`.`deleted_at` IS NULL",
-		)).WithArgs(
-			sqlmock.AnyArg(),
-		).WillReturnError(gorm.ErrInvalidTransaction)
-		mock.ExpectRollback()
-
-		err := repo.DeleteExpired()
-		assert.Error(t, err)
-		assert.Equal(t, gorm.ErrInvalidTransaction, err)
-		assert.NoError(t, mock.ExpectationsWereMet())
-	})
+// Helper function to count tokens in the database
+func countTokens(t *testing.T, db *gorm.DB) int64 {
+	var count int64
+	err := db.Model(&model.BlacklistedToken{}).Count(&count).Error
+	require.NoError(t, err, "Should count tokens without error")
+	return count
 }
