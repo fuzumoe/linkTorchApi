@@ -13,6 +13,14 @@ import (
 	"github.com/fuzumoe/urlinsight-backend/tests/integration"
 )
 
+// Helper function to count tokens in the database
+func countTokens(t *testing.T, db *gorm.DB) int64 {
+	var count int64
+	err := db.Model(&model.BlacklistedToken{}).Count(&count).Error
+	require.NoError(t, err, "Should count tokens without error")
+	return count
+}
+
 func TestBlacklistedTokenRepo_Integration(t *testing.T) {
 	// Get a clean database state
 	db := integration.SetupTest(t)
@@ -45,7 +53,7 @@ func TestBlacklistedTokenRepo_Integration(t *testing.T) {
 		assert.False(t, exists, "Non-existent token should not exist in the blacklist")
 	})
 
-	t.Run("DeleteExpired", func(t *testing.T) {
+	t.Run("Delete Expired", func(t *testing.T) {
 		// Create an expired token (expiry time in the past)
 		expiredToken := &model.BlacklistedToken{
 			JTI:       "expired-token-123",
@@ -91,12 +99,4 @@ func TestBlacklistedTokenRepo_Integration(t *testing.T) {
 	})
 
 	integration.CleanTestData(t)
-}
-
-// Helper function to count tokens in the database
-func countTokens(t *testing.T, db *gorm.DB) int64 {
-	var count int64
-	err := db.Model(&model.BlacklistedToken{}).Count(&count).Error
-	require.NoError(t, err, "Should count tokens without error")
-	return count
 }
