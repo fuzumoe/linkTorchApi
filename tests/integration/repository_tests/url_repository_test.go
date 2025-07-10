@@ -37,6 +37,8 @@ func TestURLRepo_Integration(t *testing.T) {
 		Status:      "queued",
 	}
 
+	defaultPage := repository.Pagination{Page: 1, PageSize: 10}
+
 	t.Run("Create", func(t *testing.T) {
 		err := urlRepo.Create(testURL)
 		require.NoError(t, err, "Should create URL without error")
@@ -46,10 +48,10 @@ func TestURLRepo_Integration(t *testing.T) {
 	})
 
 	t.Run("FindByID", func(t *testing.T) {
-		// First create some related entities
+		// Create related entities for preloading
 		analysisResult := &model.AnalysisResult{
 			URLID:        testURL.ID,
-			HTMLVersion:  "HTML5", // Required field
+			HTMLVersion:  "HTML5", // required field
 			Title:        "Test Page",
 			H1Count:      2,
 			H2Count:      5,
@@ -64,9 +66,9 @@ func TestURLRepo_Integration(t *testing.T) {
 
 		link := &model.Link{
 			URLID:      testURL.ID,
-			Href:       "https://linked-site.com", // Changed from Destination to Href
+			Href:       "https://linked-site.com",
 			IsExternal: true,
-			StatusCode: 200, // Added required field
+			StatusCode: 200,
 		}
 		err = db.Create(link).Error
 		require.NoError(t, err, "Should create link")
@@ -89,10 +91,9 @@ func TestURLRepo_Integration(t *testing.T) {
 		assert.True(t, foundURL.AnalysisResults[0].HasLoginForm)
 
 		require.NotEmpty(t, foundURL.Links, "Links should be preloaded")
-		assert.Equal(t, "https://linked-site.com", foundURL.Links[0].Href) // Changed from Destination to Href
-		// Removed assertion for Text field as it doesn't exist
+		assert.Equal(t, "https://linked-site.com", foundURL.Links[0].Href)
 		assert.True(t, foundURL.Links[0].IsExternal)
-		assert.Equal(t, 200, foundURL.Links[0].StatusCode) // Added assertion for StatusCode
+		assert.Equal(t, 200, foundURL.Links[0].StatusCode)
 
 		// Test not found case
 		_, err = urlRepo.FindByID(9999)
@@ -126,8 +127,8 @@ func TestURLRepo_Integration(t *testing.T) {
 		err = urlRepo.Create(otherUserURL)
 		require.NoError(t, err, "Should create URL for other user")
 
-		// Test listing URLs for our test user
-		urls, err := urlRepo.ListByUser(testUser.ID)
+		// Test listing URLs for our test user with default pagination
+		urls, err := urlRepo.ListByUser(testUser.ID, defaultPage)
 		require.NoError(t, err, "Should list URLs by user")
 		assert.Len(t, urls, 2, "Should have 2 URLs for test user")
 
@@ -136,8 +137,8 @@ func TestURLRepo_Integration(t *testing.T) {
 			assert.Equal(t, testUser.ID, u.UserID, "URL should belong to test user")
 		}
 
-		// Test listing for the other user
-		otherUserURLs, err := urlRepo.ListByUser(anotherUser.ID)
+		// Test listing for the other user with default pagination
+		otherUserURLs, err := urlRepo.ListByUser(anotherUser.ID, defaultPage)
 		require.NoError(t, err, "Should list URLs for other user")
 		assert.Len(t, otherUserURLs, 1, "Should have 1 URL for other user")
 		assert.Equal(t, anotherUser.ID, otherUserURLs[0].UserID, "URL should belong to other user")

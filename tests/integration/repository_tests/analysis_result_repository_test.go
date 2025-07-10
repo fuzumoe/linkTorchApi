@@ -53,6 +53,8 @@ func TestAnalysisResultRepo_Integration(t *testing.T) {
 		HasLoginForm: true,
 	}
 
+	defaultPage := repository.Pagination{Page: 1, PageSize: 10}
+
 	t.Run("Create", func(t *testing.T) {
 		err := analysisRepo.Create(testAnalysis)
 		require.NoError(t, err, "Should create analysis result without error")
@@ -103,7 +105,7 @@ func TestAnalysisResultRepo_Integration(t *testing.T) {
 		require.NoError(t, err, "Should create analysis for other URL")
 
 		// Test listing analyses for our test URL
-		analyses, err := analysisRepo.ListByURL(testURL.ID)
+		analyses, err := analysisRepo.ListByURL(testURL.ID, defaultPage)
 		require.NoError(t, err, "Should list analyses by URL")
 		assert.Len(t, analyses, 2, "Should have 2 analyses for test URL")
 
@@ -113,7 +115,7 @@ func TestAnalysisResultRepo_Integration(t *testing.T) {
 		}
 
 		// Test listing for the other URL
-		otherURLAnalyses, err := analysisRepo.ListByURL(anotherURL.ID)
+		otherURLAnalyses, err := analysisRepo.ListByURL(anotherURL.ID, defaultPage)
 		require.NoError(t, err, "Should list analyses for other URL")
 		assert.Len(t, otherURLAnalyses, 1, "Should have 1 analysis for other URL")
 		assert.Equal(t, anotherURL.ID, otherURLAnalyses[0].URLID, "Analysis should belong to other URL")
@@ -132,7 +134,7 @@ func TestAnalysisResultRepo_Integration(t *testing.T) {
 		require.NoError(t, err, "Should create empty URL")
 
 		// Should return empty slice, not error
-		analyses, err := analysisRepo.ListByURL(emptyURL.ID)
+		analyses, err := analysisRepo.ListByURL(emptyURL.ID, defaultPage)
 		require.NoError(t, err, "Should not error for URL without analyses")
 		assert.Empty(t, analyses, "Should return empty slice for URL without analyses")
 	})

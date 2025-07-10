@@ -20,6 +20,9 @@ func TestUserRepo_CRUD_Integration(t *testing.T) {
 	// Create the user repository.
 	userRepo := repository.NewUserRepo(db)
 
+	// Define a default pagination (Page 1, PageSize 10)
+	defaultPage := repository.Pagination{Page: 1, PageSize: 10}
+
 	// Test data.
 	testUser := &model.User{
 		Username: "testuser",
@@ -67,7 +70,7 @@ func TestUserRepo_CRUD_Integration(t *testing.T) {
 		err := userRepo.Create(secondUser)
 		require.NoError(t, err, "Should create second user")
 
-		users, err := userRepo.ListAll()
+		users, err := userRepo.ListAll(defaultPage)
 		require.NoError(t, err, "Should list all users")
 		assert.Len(t, users, 2, "Should have 2 users")
 
@@ -92,7 +95,7 @@ func TestUserRepo_CRUD_Integration(t *testing.T) {
 		_, err = userRepo.FindByID(testUser.ID)
 		assert.ErrorIs(t, err, gorm.ErrRecordNotFound, "Deleted user should not be found")
 
-		users, err := userRepo.ListAll()
+		users, err := userRepo.ListAll(defaultPage)
 		require.NoError(t, err, "Should list all users")
 		assert.Len(t, users, 1, "Should have 1 user after deletion")
 		assert.NotEqual(t, testUser.ID, users[0].ID, "Deleted user should not be in the list")
@@ -102,5 +105,4 @@ func TestUserRepo_CRUD_Integration(t *testing.T) {
 	})
 
 	integration.CleanTestData(t)
-
 }

@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"errors"
+
 	"gorm.io/gorm"
 
 	"github.com/fuzumoe/urlinsight-backend/internal/model"
@@ -9,7 +11,7 @@ import (
 // LinkRepository defines DB ops for Link entities.
 type LinkRepository interface {
 	Create(link *model.Link) error
-	ListByURL(urlID uint) ([]model.Link, error)
+	ListByURL(urlID uint, p Pagination) ([]model.Link, error)
 	Update(link *model.Link) error
 	Delete(link *model.Link) error
 }
@@ -26,12 +28,14 @@ func (r *linkRepo) Create(link *model.Link) error {
 	return r.db.Create(link).Error
 }
 
-func (r *linkRepo) ListByURL(urlID uint) ([]model.Link, error) {
+func (r *linkRepo) ListByURL(urlID uint, p Pagination) ([]model.Link, error) {
 	var links []model.Link
-	if err := r.db.Where("url_id = ?", urlID).Find(&links).Error; err != nil {
-		return nil, err
-	}
-	return links, nil
+	err := r.db.
+		Where("url_id = ?", urlID).
+		Limit(p.Limit()).
+		Offset(p.Offset()).
+		Find(&links).Error
+	return links, err
 }
 
 func (r *linkRepo) Update(link *model.Link) error {
@@ -39,5 +43,13 @@ func (r *linkRepo) Update(link *model.Link) error {
 }
 
 func (r *linkRepo) Delete(link *model.Link) error {
-	return r.db.Delete(link).Error
+	// Using GORM's Delete method with soft delete
+	result := r.db.Delete(link)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return errors.New("link not found")
+	}
+	return nil
 }

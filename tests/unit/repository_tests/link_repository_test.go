@@ -6,16 +6,15 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/fuzumoe/urlinsight-backend/internal/model"
+	"github.com/fuzumoe/urlinsight-backend/internal/repository"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
-
-	"github.com/fuzumoe/urlinsight-backend/internal/model"
-	"github.com/fuzumoe/urlinsight-backend/internal/repository"
 )
 
-// setupLinkMockDB initializes a GORM DB backed by sqlmock.
+// setupLinkMockDB initializes a new GORM DB instance backed by sqlmock.
 func setupLinkMockDB(t *testing.T) (*gorm.DB, sqlmock.Sqlmock) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -29,120 +28,129 @@ func setupLinkMockDB(t *testing.T) (*gorm.DB, sqlmock.Sqlmock) {
 	return gormDB, mock
 }
 
-func TestLinkRepo(t *testing.T) {
-	t.Run("Create", func(t *testing.T) {
-		db, mock := setupLinkMockDB(t)
-		repo := repository.NewLinkRepo(db)
-		testLink := &model.Link{
-			URLID:      42,
-			Href:       "https://example.com",
-			IsExternal: true,
-			StatusCode: 200,
-		}
+func TestLinkRepo_Create(t *testing.T) {
+	db, mock := setupLinkMockDB(t)
+	repo := repository.NewLinkRepo(db)
 
-		mock.ExpectBegin()
-		exec := mock.ExpectExec(regexp.QuoteMeta(
-			"INSERT INTO `links` (`url_id`,`href`,`is_external`,`status_code`,`created_at`,`updated_at`,`deleted_at`) VALUES (?,?,?,?,?,?,?)",
-		))
-		exec.WithArgs(
-			testLink.URLID,
-			testLink.Href,
-			testLink.IsExternal,
-			testLink.StatusCode,
-			sqlmock.AnyArg(),
-			sqlmock.AnyArg(),
-			sqlmock.AnyArg(),
-		)
-		exec.WillReturnResult(sqlmock.NewResult(1, 1))
-		mock.ExpectCommit()
+	// Prepare a test Link with all fields.
+	testLink := &model.Link{
+		URLID:      10,
+		Href:       "https://example.com",
+		IsExternal: false,
+		StatusCode: 0,
+	}
 
-		err := repo.Create(testLink)
-		assert.NoError(t, err)
-		assert.Equal(t, uint(1), testLink.ID)
-		assert.NoError(t, mock.ExpectationsWereMet())
-	})
+	mock.ExpectBegin()
+	// Expect INSERT statement with all columns.
+	exec := mock.ExpectExec(regexp.QuoteMeta(
+		"INSERT INTO `links` (`url_id`,`href`,`is_external`,`status_code`,`created_at`,`updated_at`,`deleted_at`) VALUES (?,?,?,?,?,?,?)",
+	))
+	exec.WithArgs(
+		testLink.URLID,
+		testLink.Href,
+		testLink.IsExternal,
+		testLink.StatusCode,
+		sqlmock.AnyArg(), // created_at
+		sqlmock.AnyArg(), // updated_at
+		sqlmock.AnyArg(), // deleted_at, likely nil
+	).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
 
-	t.Run("ListByURL", func(t *testing.T) {
-		db, mock := setupLinkMockDB(t)
-		repo := repository.NewLinkRepo(db)
-		urlID := uint(5)
+	err := repo.Create(testLink)
+	assert.NoError(t, err)
+	// Check that GORM assigned ID 1.
+	assert.Equal(t, uint(1), testLink.ID)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
 
-		// Return two rows with proper time.Time values
-		mock.ExpectQuery(regexp.QuoteMeta(
-			"SELECT * FROM `links` WHERE url_id = ?",
-		)).WithArgs(urlID).WillReturnRows(
-			sqlmock.NewRows([]string{"id", "url_id", "href", "is_external", "status_code", "created_at", "updated_at", "deleted_at"}).
-				AddRow(1, urlID, "https://link1.com", true, 200, time.Date(2025, 7, 10, 0, 0, 0, 0, time.UTC), time.Date(2025, 7, 10, 0, 0, 0, 0, time.UTC), nil).
-				AddRow(2, urlID, "https://link2.com", false, 200, time.Date(2025, 7, 10, 0, 0, 0, 0, time.UTC), time.Date(2025, 7, 10, 0, 0, 0, 0, time.UTC), nil),
-		)
+func TestLinkRepo_ListByURL(t *testing.T) {
+	db, mock := setupLinkMockDB(t)
+	repo := repository.NewLinkRepo(db)
+	urlID := uint(10)
 
-		links, err := repo.ListByURL(urlID)
-		assert.NoError(t, err)
-		assert.Len(t, links, 2)
-		assert.Equal(t, "https://link1.com", links[0].Href)
-		assert.True(t, links[0].IsExternal)
-		assert.Equal(t, "https://link2.com", links[1].Href)
-		assert.False(t, links[1].IsExternal)
-		assert.NoError(t, mock.ExpectationsWereMet())
-	})
+	mock.ExpectQuery(regexp.QuoteMeta(
+		"SELECT * FROM `links` WHERE url_id = ? AND `links`.`deleted_at` IS NULL LIMIT ?",
+	)).WithArgs(urlID, 10).WillReturnRows(
+		sqlmock.NewRows([]string{"id", "url_id", "href", "is_external", "status_code", "created_at", "updated_at", "deleted_at"}).
+			AddRow(1, urlID, "https://link1.com", false, 200,
+				time.Date(2025, 7, 10, 12, 0, 0, 0, time.UTC),
+				time.Date(2025, 7, 10, 12, 0, 0, 0, time.UTC), nil).
+			AddRow(2, urlID, "https://link2.com", true, 404,
+				time.Date(2025, 7, 10, 13, 0, 0, 0, time.UTC),
+				time.Date(2025, 7, 10, 13, 0, 0, 0, time.UTC), nil),
+	)
 
-	t.Run("Update", func(t *testing.T) {
-		// Create a new mock DB for each test to avoid interference
-		db, mock := setupLinkMockDB(t)
-		repo := repository.NewLinkRepo(db)
-		testLink := &model.Link{
-			ID:         3,
-			URLID:      10,
-			Href:       "https://old-link.com",
-			IsExternal: false,
-			StatusCode: 200,
-		}
+	links, err := repo.ListByURL(urlID, repository.Pagination{Page: 1, PageSize: 10})
+	assert.NoError(t, err)
+	assert.Len(t, links, 2)
+	// Verify returned record.
+	assert.Equal(t, "https://link1.com", links[0].Href)
+	assert.Equal(t, false, links[0].IsExternal)
+	assert.Equal(t, 200, links[0].StatusCode)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
 
-		// Change some properties
-		testLink.Href = "https://updated-link.com"
-		testLink.IsExternal = true
-		testLink.StatusCode = 302
+func TestLinkRepo_Update(t *testing.T) {
+	db, mock := setupLinkMockDB(t)
+	repo := repository.NewLinkRepo(db)
+	testLink := &model.Link{
+		ID:         3,
+		URLID:      10,
+		Href:       "https://old.com",
+		IsExternal: false,
+		StatusCode: 0,
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
+	}
+	// Update the Href and mark as external.
+	testLink.Href = "https://new.com"
+	testLink.IsExternal = true
 
-		// Instead of trying to match the exact SQL, use a more flexible matcher
-		// that only checks the beginning of the statement
-		mock.ExpectBegin()
-		mock.ExpectExec("UPDATE `links` SET").WithArgs(
-			sqlmock.AnyArg(), // url_id
-			sqlmock.AnyArg(), // href
-			sqlmock.AnyArg(), // is_external
-			sqlmock.AnyArg(), // status_code
-			sqlmock.AnyArg(), // created_at
-			sqlmock.AnyArg(), // updated_at
-			sqlmock.AnyArg(), // deleted_at
-			sqlmock.AnyArg(), // id
-		).WillReturnResult(sqlmock.NewResult(0, 1))
-		mock.ExpectCommit()
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(
+		"UPDATE `links` SET `url_id`=?,`href`=?,`is_external`=?,`status_code`=?,`created_at`=?,`updated_at`=?,`deleted_at`=? WHERE `links`.`deleted_at` IS NULL AND `id` = ?",
+	)).WithArgs(
+		testLink.URLID, testLink.Href, testLink.IsExternal, testLink.StatusCode,
+		testLink.CreatedAt, sqlmock.AnyArg(), nil, testLink.ID,
+	).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
 
-		err := repo.Update(testLink)
-		assert.NoError(t, err)
-		assert.NoError(t, mock.ExpectationsWereMet())
-	})
-	t.Run("Delete", func(t *testing.T) {
-		db, mock := setupLinkMockDB(t)
-		repo := repository.NewLinkRepo(db)
-		testLink := &model.Link{
-			ID:         4,
-			URLID:      15,
-			Href:       "https://to-be-deleted.com",
-			IsExternal: true,
-			StatusCode: 200,
-		}
+	err := repo.Update(testLink)
+	assert.NoError(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
 
-		// For soft delete, GORM updates the deleted_at timestamp
-		mock.ExpectBegin()
-		mock.ExpectExec(regexp.QuoteMeta(
-			"UPDATE `links` SET `deleted_at`=? WHERE `links`.`id` = ? AND `links`.`deleted_at` IS NULL",
-		)).WithArgs(sqlmock.AnyArg(), testLink.ID).WillReturnResult(sqlmock.NewResult(0, 1))
-		mock.ExpectCommit()
+func TestLinkRepo_Delete_Success(t *testing.T) {
+	db, mock := setupLinkMockDB(t)
+	repo := repository.NewLinkRepo(db)
 
-		err := repo.Delete(testLink)
-		assert.NoError(t, err)
-		assert.NoError(t, mock.ExpectationsWereMet())
-	})
+	// Create a dummy link to delete.
+	testLink := &model.Link{ID: 4}
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(
+		"UPDATE `links` SET `deleted_at`=? WHERE `links`.`id` = ? AND `links`.`deleted_at` IS NULL",
+	)).WithArgs(sqlmock.AnyArg(), testLink.ID).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
 
+	err := repo.Delete(testLink)
+	assert.NoError(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestLinkRepo_Delete_NotFound(t *testing.T) {
+	db, mock := setupLinkMockDB(t)
+	repo := repository.NewLinkRepo(db)
+
+	// Dummy link for non-existent record.
+	testLink := &model.Link{ID: 999}
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(
+		"UPDATE `links` SET `deleted_at`=? WHERE `links`.`id` = ? AND `links`.`deleted_at` IS NULL",
+	)).WithArgs(sqlmock.AnyArg(), testLink.ID).WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectCommit()
+
+	err := repo.Delete(testLink)
+	// Expect error "link not found" when no rows are affected.
+	assert.EqualError(t, err, "link not found")
+	assert.NoError(t, mock.ExpectationsWereMet())
 }

@@ -13,7 +13,7 @@ type UserRepository interface {
 	Create(u *model.User) error
 	FindByID(id uint) (*model.User, error)
 	FindByEmail(email string) (*model.User, error)
-	ListAll() ([]model.User, error)
+	ListAll(p Pagination) ([]model.User, error)
 	Delete(id uint) error
 }
 
@@ -47,12 +47,13 @@ func (r *userRepo) FindByEmail(email string) (*model.User, error) {
 	return &u, nil
 }
 
-func (r *userRepo) ListAll() ([]model.User, error) {
+func (r *userRepo) ListAll(p Pagination) ([]model.User, error) {
 	var users []model.User
-	if err := r.db.Find(&users).Error; err != nil {
-		return nil, err
-	}
-	return users, nil
+	err := r.db.
+		Limit(p.Limit()).
+		Offset(p.Offset()).
+		Find(&users).Error
+	return users, err
 }
 
 func (r *userRepo) Delete(id uint) error {

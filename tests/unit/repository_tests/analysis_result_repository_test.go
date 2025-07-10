@@ -78,11 +78,12 @@ func TestAnalysisResultRepo(t *testing.T) {
 		db, mock := setupAnaMockDB(t)
 		repo := repository.NewAnalysisResultRepo(db)
 		urlID := uint(5)
+		pagination := repository.Pagination{Page: 1, PageSize: 10}
 
 		// Return two rows with proper time.Time values
 		mock.ExpectQuery(regexp.QuoteMeta(
-			"SELECT * FROM `analysis_results` WHERE url_id = ?",
-		)).WithArgs(urlID).WillReturnRows(
+			"SELECT * FROM `analysis_results` WHERE url_id = ? AND `analysis_results`.`deleted_at` IS NULL LIMIT ? OFFSET ?",
+		)).WithArgs(urlID, pagination.Limit(), pagination.Offset()).WillReturnRows(
 			sqlmock.NewRows([]string{
 				"id", "url_id", "html_version", "title", "h1_count", "h2_count", "h3_count",
 				"h4_count", "h5_count", "h6_count", "has_login_form", "created_at", "updated_at", "deleted_at",
@@ -101,7 +102,7 @@ func TestAnalysisResultRepo(t *testing.T) {
 				),
 		)
 
-		results, err := repo.ListByURL(urlID)
+		results, err := repo.ListByURL(urlID, pagination)
 		assert.NoError(t, err)
 		assert.Len(t, results, 2)
 
@@ -126,14 +127,53 @@ func TestAnalysisResultRepo(t *testing.T) {
 		db, mock := setupAnaMockDB(t)
 		repo := repository.NewAnalysisResultRepo(db)
 		urlID := uint(999)
+		pagination := repository.Pagination{Page: 1, PageSize: 10}
 
 		mock.ExpectQuery(regexp.QuoteMeta(
-			"SELECT * FROM `analysis_results` WHERE url_id = ?",
-		)).WithArgs(urlID).WillReturnRows(sqlmock.NewRows([]string{}))
+			"SELECT * FROM `analysis_results` WHERE url_id = ? AND `analysis_results`.`deleted_at` IS NULL LIMIT ? OFFSET ?",
+		)).WithArgs(urlID, pagination.Limit(), pagination.Offset()).WillReturnRows(sqlmock.NewRows([]string{}))
 
-		results, err := repo.ListByURL(urlID)
+		results, err := repo.ListByURL(urlID, pagination)
 		assert.NoError(t, err)
 		assert.Empty(t, results)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("ListByURL_WithPagination", func(t *testing.T) {
+		db, mock := setupAnaMockDB(t)
+		repo := repository.NewAnalysisResultRepo(db)
+		urlID := uint(5)
+		pagination := repository.Pagination{Page: 2, PageSize: 2}
+
+		mock.ExpectQuery(regexp.QuoteMeta(
+			"SELECT * FROM `analysis_results` WHERE url_id = ? AND `analysis_results`.`deleted_at` IS NULL LIMIT ? OFFSET ?",
+		)).WithArgs(urlID, pagination.Limit(), pagination.Offset()).WillReturnRows(
+			sqlmock.NewRows([]string{
+				"id", "url_id", "html_version", "title", "h1_count", "h2_count", "h3_count",
+				"h4_count", "h5_count", "h6_count", "has_login_form", "created_at", "updated_at", "deleted_at",
+			}).
+				AddRow(
+					3, urlID, "HTML5", "Third Analysis", 3, 6, 4, 0, 0, 0, true,
+					time.Date(2025, 7, 12, 0, 0, 0, 0, time.UTC),
+					time.Date(2025, 7, 12, 0, 0, 0, 0, time.UTC),
+					nil,
+				).
+				AddRow(
+					4, urlID, "HTML4", "Fourth Analysis", 1, 2, 1, 1, 0, 0, false,
+					time.Date(2025, 7, 13, 0, 0, 0, 0, time.UTC),
+					time.Date(2025, 7, 13, 0, 0, 0, 0, time.UTC),
+					nil,
+				),
+		)
+
+		results, err := repo.ListByURL(urlID, pagination)
+		assert.NoError(t, err)
+		assert.Len(t, results, 2)
+
+		// Verify pagination works by checking we got the "second page" of results
+		assert.Equal(t, "Third Analysis", results[0].Title)
+		assert.Equal(t, "Fourth Analysis", results[1].Title)
+
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }

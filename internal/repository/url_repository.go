@@ -12,7 +12,7 @@ import (
 type URLRepository interface {
 	Create(u *model.URL) error
 	FindByID(id uint) (*model.URL, error)
-	ListByUser(userID uint) ([]model.URL, error)
+	ListByUser(userID uint, p Pagination) ([]model.URL, error)
 	Update(u *model.URL) error
 	Delete(id uint) error
 }
@@ -41,12 +41,14 @@ func (r *urlRepo) FindByID(id uint) (*model.URL, error) {
 	return &u, nil
 }
 
-func (r *urlRepo) ListByUser(userID uint) ([]model.URL, error) {
+func (r *urlRepo) ListByUser(userID uint, p Pagination) ([]model.URL, error) {
 	var urls []model.URL
-	if err := r.db.Where("user_id = ?", userID).Find(&urls).Error; err != nil {
-		return nil, err
-	}
-	return urls, nil
+	err := r.db.
+		Where("user_id = ?", userID).
+		Limit(p.Limit()).
+		Offset(p.Offset()).
+		Find(&urls).Error
+	return urls, err
 }
 
 func (r *urlRepo) Update(u *model.URL) error {

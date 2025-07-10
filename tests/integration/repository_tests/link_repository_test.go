@@ -6,6 +6,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"fmt"
+
 	"github.com/fuzumoe/urlinsight-backend/internal/model"
 	"github.com/fuzumoe/urlinsight-backend/internal/repository"
 	"github.com/fuzumoe/urlinsight-backend/tests/integration"
@@ -19,6 +21,9 @@ func TestLinkRepo_Integration(t *testing.T) {
 	linkRepo := repository.NewLinkRepo(db)
 	urlRepo := repository.NewURLRepo(db)
 	userRepo := repository.NewUserRepo(db)
+
+	// Define a default pagination (Page 1, PageSize 10)
+	defaultPage := repository.Pagination{Page: 1, PageSize: 10}
 
 	// First create a test user and URL (needed for Link foreign key)
 	testUser := &model.User{
@@ -66,7 +71,7 @@ func TestLinkRepo_Integration(t *testing.T) {
 		err := linkRepo.Create(secondLink)
 		require.NoError(t, err, "Should create second Link")
 
-		// Create another URL and link for it
+		// Create another URL and a link for it
 		anotherURL := &model.URL{
 			UserID:      testUser.ID,
 			OriginalURL: "https://another-example.com",
@@ -84,8 +89,8 @@ func TestLinkRepo_Integration(t *testing.T) {
 		err = linkRepo.Create(otherURLLink)
 		require.NoError(t, err, "Should create Link for other URL")
 
-		// Test listing links for our test URL
-		links, err := linkRepo.ListByURL(testURL.ID)
+		// Test listing links for our test URL using default pagination
+		links, err := linkRepo.ListByURL(testURL.ID, defaultPage)
 		require.NoError(t, err, "Should list Links by URL")
 		assert.Len(t, links, 2, "Should have 2 Links for test URL")
 
@@ -95,7 +100,7 @@ func TestLinkRepo_Integration(t *testing.T) {
 		}
 
 		// Test listing for the other URL
-		otherURLLinks, err := linkRepo.ListByURL(anotherURL.ID)
+		otherURLLinks, err := linkRepo.ListByURL(anotherURL.ID, defaultPage)
 		require.NoError(t, err, "Should list Links for other URL")
 		assert.Len(t, otherURLLinks, 1, "Should have 1 Link for other URL")
 		assert.Equal(t, anotherURL.ID, otherURLLinks[0].URLID, "Link should belong to other URL")
@@ -110,11 +115,10 @@ func TestLinkRepo_Integration(t *testing.T) {
 		err := linkRepo.Update(testLink)
 		require.NoError(t, err, "Should update Link without error")
 
-		// Verify the changes were saved by fetching the updated links
-		updatedLinks, err := linkRepo.ListByURL(testURL.ID)
-		require.NoError(t, err, "Should find updated Links")
+		// Verify the changes were saved by fetching the updated links for the URL
+		updatedLinks, err := linkRepo.ListByURL(testURL.ID, defaultPage)
+		require.NoError(t, err, "Should list updated Links")
 
-		// Find our updated link in the list
 		var found bool
 		for _, link := range updatedLinks {
 			if link.ID == testLink.ID {
@@ -132,14 +136,34 @@ func TestLinkRepo_Integration(t *testing.T) {
 		err := linkRepo.Delete(testLink)
 		require.NoError(t, err, "Should delete Link without error")
 
-		// Verify Link was deleted by checking it's not in the list
-		remainingLinks, err := linkRepo.ListByURL(testURL.ID)
+		// Verify the Link was deleted by listing remaining links
+		remainingLinks, err := linkRepo.ListByURL(testURL.ID, defaultPage)
 		require.NoError(t, err, "Should list remaining links")
-
-		// Make sure our deleted link is not in the list
 		for _, link := range remainingLinks {
 			assert.NotEqual(t, testLink.ID, link.ID, "Deleted link should not be in the list")
 		}
+	})
+
+	// Optional: additional pagination test
+	t.Run("Pagination", func(t *testing.T) {
+		// Create extra links to test pagination behavior.
+		for i := 0; i < 5; i++ {
+			newLink := &model.Link{
+				URLID:      testURL.ID,
+				Href:       "https://paginated-link.com/" + fmt.Sprint(rune('A'+i)),
+				IsExternal: i%2 == 0,
+				StatusCode: 200 + i,
+			}
+			err := linkRepo.Create(newLink)
+			require.NoError(t, err, "Should create paginated link")
+		}
+
+		// Request page 2 with page size 3
+		p2 := repository.Pagination{Page: 2, PageSize: 3}
+		pagedLinks, err := linkRepo.ListByURL(testURL.ID, p2)
+		require.NoError(t, err, "Should list paginated links")
+		// We expect at most 3 results in page 2.
+		assert.LessOrEqual(t, len(pagedLinks), 3, "Paginated result should have at most 3 links")
 	})
 
 	integration.CleanTestData(t)

@@ -33,25 +33,30 @@ func TestURLRepo(t *testing.T) {
 	t.Run("Create", func(t *testing.T) {
 		db, mock := setupMockDB(t)
 		repo := repository.NewURLRepo(db)
-		testURL := &model.URL{UserID: 42, OriginalURL: "https://example.com"}
+		testURL := &model.URL{
+			UserID:      42,
+			OriginalURL: "https://example.com",
+			// Default status is applied by GORM/default value in the model
+		}
 
 		mock.ExpectBegin()
+		// INSERT SQL must match what GORM generates.
 		exec := mock.ExpectExec(regexp.QuoteMeta(
 			"INSERT INTO `urls` (`user_id`,`original_url`,`status`,`created_at`,`updated_at`,`deleted_at`) VALUES (?,?,?,?,?,?)",
 		))
 		exec.WithArgs(
 			testURL.UserID,
 			testURL.OriginalURL,
-			"queued",
-			sqlmock.AnyArg(),
-			sqlmock.AnyArg(),
-			sqlmock.AnyArg(),
-		)
-		exec.WillReturnResult(sqlmock.NewResult(1, 1))
+			"queued",         // assuming default status is "queued"
+			sqlmock.AnyArg(), // created_at
+			sqlmock.AnyArg(), // updated_at
+			sqlmock.AnyArg(), // deleted_at (usually nil)
+		).WillReturnResult(sqlmock.NewResult(1, 1))
 		mock.ExpectCommit()
 
 		err := repo.Create(testURL)
 		assert.NoError(t, err)
+		// Assuming that GORM assigns the returned id.
 		assert.Equal(t, uint(1), testURL.ID)
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
@@ -61,21 +66,22 @@ func TestURLRepo(t *testing.T) {
 		repo := repository.NewURLRepo(db)
 		id := uint(7)
 
-		// Main SELECT
+		// Main SELECT query
 		exprMain := mock.ExpectQuery(regexp.QuoteMeta(
 			"SELECT * FROM `urls` WHERE `urls`.`id` = ? AND `urls`.`deleted_at` IS NULL ORDER BY `urls`.`id` LIMIT ?",
 		))
 		exprMain.WithArgs(id, 1).WillReturnRows(
 			sqlmock.NewRows([]string{"id", "user_id", "original_url", "status", "created_at", "updated_at", "deleted_at"}).
-				AddRow(id, 42, "https://u.test", "queued", time.Date(2025, 7, 10, 0, 0, 0, 0, time.UTC), time.Date(2025, 7, 10, 0, 0, 0, 0, time.UTC), nil),
+				AddRow(id, 42, "https://u.test", "queued", time.Date(2025, 7, 10, 0, 0, 0, 0, time.UTC),
+					time.Date(2025, 7, 10, 0, 0, 0, 0, time.UTC), nil),
 		)
 
-		// Preload AnalysisResults
+		// Preload AnalysisResults (if any)
 		mock.ExpectQuery(regexp.QuoteMeta(
 			"SELECT * FROM `analysis_results` WHERE `analysis_results`.`url_id` = ? AND `analysis_results`.`deleted_at` IS NULL",
 		)).WithArgs(id).WillReturnRows(sqlmock.NewRows([]string{"id"}))
 
-		// Preload Links
+		// Preload Links (if any)
 		mock.ExpectQuery(regexp.QuoteMeta(
 			"SELECT * FROM `links` WHERE `links`.`url_id` = ? AND `links`.`deleted_at` IS NULL",
 		)).WithArgs(id).WillReturnRows(sqlmock.NewRows([]string{"id"}))
@@ -106,34 +112,45 @@ func TestURLRepo(t *testing.T) {
 		repo := repository.NewURLRepo(db)
 		userID := uint(5)
 
-		// Return two rows with proper time.Time values
+		// Adjusted expected SQL to include the soft-delete clause and limit.
 		mock.ExpectQuery(regexp.QuoteMeta(
-			"SELECT * FROM `urls` WHERE user_id = ?",
-		)).WithArgs(userID).WillReturnRows(
+			"SELECT * FROM `urls` WHERE user_id = ? AND `urls`.`deleted_at` IS NULL LIMIT ?",
+		)).WithArgs(userID, 10).WillReturnRows(
 			sqlmock.NewRows([]string{"id", "user_id", "original_url", "status", "created_at", "updated_at", "deleted_at"}).
-				AddRow(1, userID, "url1", "queued", time.Date(2025, 7, 10, 0, 0, 0, 0, time.UTC), time.Date(2025, 7, 10, 0, 0, 0, 0, time.UTC), nil).
-				AddRow(2, userID, "url2", "queued", time.Date(2025, 7, 10, 0, 0, 0, 0, time.UTC), time.Date(2025, 7, 10, 0, 0, 0, 0, time.UTC), nil),
+				AddRow(1, userID, "url1", "queued", time.Date(2025, 7, 10, 0, 0, 0, 0, time.UTC),
+					time.Date(2025, 7, 10, 0, 0, 0, 0, time.UTC), nil).
+				AddRow(2, userID, "url2", "queued", time.Date(2025, 7, 10, 1, 0, 0, 0, time.UTC),
+					time.Date(2025, 7, 10, 1, 0, 0, 0, time.UTC), nil),
 		)
 
-		list, err := repo.ListByUser(userID)
+		urls, err := repo.ListByUser(userID, repository.Pagination{Page: 1, PageSize: 10})
 		assert.NoError(t, err)
-		assert.Len(t, list, 2)
-		assert.Equal(t, "url1", list[0].OriginalURL)
+		assert.Len(t, urls, 2)
+		assert.Equal(t, "url1", urls[0].OriginalURL)
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 
 	t.Run("Update", func(t *testing.T) {
 		db, mock := setupMockDB(t)
 		repo := repository.NewURLRepo(db)
-		testURL := &model.URL{ID: 3, UserID: 1, OriginalURL: "old"}
+		testURL := &model.URL{
+			ID:          3,
+			UserID:      1,
+			OriginalURL: "old",
+			Status:      "queued",
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+		}
+		// Modify URL for update.
 		testURL.OriginalURL = "new"
 
 		mock.ExpectBegin()
-		// Updated SQL pattern to match what GORM actually generates:
+		// GORM generates an UPDATE statement; adjust pattern as needed.
 		mock.ExpectExec(regexp.QuoteMeta(
 			"UPDATE `urls` SET `user_id`=?,`original_url`=?,`status`=?,`created_at`=?,`updated_at`=?,`deleted_at`=? WHERE `urls`.`deleted_at` IS NULL AND `id` = ?",
 		)).WithArgs(
-			testURL.UserID, testURL.OriginalURL, testURL.Status, testURL.CreatedAt, sqlmock.AnyArg(), nil, testURL.ID,
+			testURL.UserID, testURL.OriginalURL, testURL.Status,
+			testURL.CreatedAt, sqlmock.AnyArg(), nil, testURL.ID,
 		).WillReturnResult(sqlmock.NewResult(0, 1))
 		mock.ExpectCommit()
 
@@ -146,7 +163,7 @@ func TestURLRepo(t *testing.T) {
 		db, mock := setupMockDB(t)
 		repo := repository.NewURLRepo(db)
 
-		// For soft delete, GORM updates the deleted_at timestamp instead of actually deleting the row
+		// For soft delete, GORM updates the deleted_at column.
 		mock.ExpectBegin()
 		mock.ExpectExec(regexp.QuoteMeta(
 			"UPDATE `urls` SET `deleted_at`=? WHERE `urls`.`id` = ? AND `urls`.`deleted_at` IS NULL",
@@ -162,7 +179,7 @@ func TestURLRepo(t *testing.T) {
 		db, mock := setupMockDB(t)
 		repo := repository.NewURLRepo(db)
 
-		// For record not found case
+		// For record not found, rows affected is 0.
 		mock.ExpectBegin()
 		mock.ExpectExec(regexp.QuoteMeta(
 			"UPDATE `urls` SET `deleted_at`=? WHERE `urls`.`id` = ? AND `urls`.`deleted_at` IS NULL",
