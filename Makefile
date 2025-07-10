@@ -11,7 +11,7 @@ BINARY_NAME=urlinsight-backend
 BINARY_UNIX=$(BINARY_NAME)_unix
 
 # Test parameters
-TEST_TIMEOUT=60s
+TEST_TIMEOUT=30s
 TEST_COVERAGE_FILE=coverage.out
 TEST_COVERAGE_HTML=coverage.html
 
@@ -37,26 +37,35 @@ test-unit:
 
 # Run integration tests only
 test-integration: db-up
-	sleep 10
+	@echo "Waiting for database to be ready..."
+	@while ! bash -c "echo > /dev/tcp/localhost/3309" 2>/dev/null; do \
+        echo "Waiting for MySQL on port 3309..."; \
+        sleep 1; \
+	done
 	$(GOTEST) -v -timeout $(TEST_TIMEOUT) ./tests/integration/...
 
 # Run tests with coverage
 test-coverage: db-up
-	sleep 10
-	$(GOTEST) -v -timeout $(TEST_TIMEOUT) -coverprofile=$(TEST_COVERAGE_FILE) \
-        ./internal/... ./tests/unit/... ./tests/integration/...
-	$(GOTOOL) cover -html=$(TEST_COVERAGE_FILE) -o $(TEST_COVERAGE_HTML)
+	@echo "Waiting for database to be ready..."
+	@while ! bash -c "echo > /dev/tcp/localhost/3309" 2>/dev/null; do \
+        echo "Waiting for MySQL on port 3309..."; \
+        sleep 1; \
+	done
 	@echo "Coverage report generated: $(TEST_COVERAGE_HTML)"
 
 # Run unit tests with coverage
 test-unit-coverage:
-	$(GOTEST) -v -timeout $(TEST_TIMEOUT) -coverprofile=$(TEST_COVERAGE_FILE) ./internal/...
+	$(GOTEST) -v -timeout $(TEST_TIMEOUT) -coverprofile=$(TEST_COVERAGE_FILE) ./tests/unit/...
 	$(GOTOOL) cover -html=$(TEST_COVERAGE_FILE) -o $(TEST_COVERAGE_HTML)
 	@echo "Unit test coverage report generated: $(TEST_COVERAGE_HTML)"
 
 # Run integration tests with coverage
 test-integration-coverage: db-up
-	sleep 10
+	@echo "Waiting for database to be ready..."
+	@while ! bash -c "echo > /dev/tcp/localhost/3309" 2>/dev/null; do \
+        echo "Waiting for MySQL on port 3309..."; \
+        sleep 1; \
+	done
 	$(GOTEST) -v -timeout $(TEST_TIMEOUT) -coverprofile=$(TEST_COVERAGE_FILE) ./tests/integration/...
 	$(GOTOOL) cover -html=$(TEST_COVERAGE_FILE) -o $(TEST_COVERAGE_HTML)
 	@echo "Integration test coverage report generated: $(TEST_COVERAGE_HTML)"

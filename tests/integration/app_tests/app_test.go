@@ -11,29 +11,10 @@ import (
 	"github.com/fuzumoe/urlinsight-backend/tests/integration"
 )
 
-// TestMain sets up and tears down the test environment
-func TestMain(m *testing.M) {
-	// Initialize the test database
-	if err := integration.InitTestSuite(); err != nil {
-		println("Failed to setup test suite:", err.Error())
-		os.Exit(1)
-	}
-
-	// Run tests
-	code := m.Run()
-
-	// Clean up
-	integration.CleanupTestSuite()
-	os.Exit(code)
-}
-
 // TestAppRun_Integration verifies that the app can connect to a real database and run migrations
 func TestAppRun_Integration(t *testing.T) {
 	// Ensure database is available
-	integration.CheckDBAvailability()
-
-	// Set the DATABASE_URL environment variable to point to our test database
-	db := integration.GetTestDB()
+	db := integration.SetupWithoutMigrations(t)
 	sqlDB, err := db.DB()
 	require.NoError(t, err)
 
