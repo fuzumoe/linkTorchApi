@@ -1,4 +1,3 @@
-// File: tests/integration/repository/repository_test.go
 package repository_test
 
 import (
@@ -14,7 +13,7 @@ import (
 
 // TestNewDB_Integration tests the NewDB function with a real MySQL database connection.
 func TestNewDB_Integration(t *testing.T) {
-	// fallback DSN if env var isn’t set
+	// fallback DSN if env var isn't set.
 	dsn := os.Getenv("TEST_MYSQL_DSN")
 	if dsn == "" {
 		dsn = "urlinsight_user:secret@tcp(localhost:3309)/urlinsight_test?parseTime=true"
@@ -42,6 +41,7 @@ func TestNewDB_Integration(t *testing.T) {
 		stats := sqlDB.Stats()
 		assert.Greater(t, stats.OpenConnections, 0, "Should have at least one open connection")
 	})
-	integration.CleanTestData(t) // Clean up test data after tests
+
+	integration.CleanTestData(t)
 
 }

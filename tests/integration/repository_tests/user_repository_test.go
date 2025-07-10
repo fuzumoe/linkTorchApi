@@ -101,6 +101,6 @@ func TestUserRepo_CRUD_Integration(t *testing.T) {
 		assert.EqualError(t, err, "user not found", "Should return error when deleting non-existent user")
 	})
 
-	integration.CleanTestData(t) // Clean up test data after tests
+	integration.CleanTestData(t)
 
 }

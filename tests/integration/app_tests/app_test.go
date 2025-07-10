@@ -11,9 +11,9 @@ import (
 	"github.com/fuzumoe/urlinsight-backend/tests/integration"
 )
 
-// TestAppRun_Integration verifies that the app can connect to a real database and run migrations
+// TestAppRun_Integration verifies that the app can connect to a real database and run migrations.
 func TestAppRun_Integration(t *testing.T) {
-	// Ensure database is available
+	// Ensure database is available.
 	db := integration.SetupWithoutMigrations(t)
 	sqlDB, err := db.DB()
 	require.NoError(t, err)
@@ -29,15 +29,19 @@ func TestAppRun_Integration(t *testing.T) {
 		os.Setenv("DATABASE_URL", dsn)
 	}
 
-	// Close the existing connection to allow app.Run() to create its own
-	sqlDB.Close()
+	t.Run("AppRun_Integration", func(t *testing.T) {
+		// Set up the app with the test database DSN.
 
-	// Run the app which will load config, connect to DB, and run migrations
-	err = app.Run()
-	assert.NoError(t, err, "App should run successfully")
+		// Close the existing connection to allow app.Run() to create its own.
+		sqlDB.Close()
 
-	// Additional assertion - try to run it again to ensure idempotency
-	err = app.Run()
-	assert.NoError(t, err, "App should be able to run again (idempotent)")
+		// Run the app which will load config, connect to DB, and run migrations.
+		err = app.Run()
+		assert.NoError(t, err, "App should run successfully")
+
+		// Additional assertion - try to run it again to ensure idempotency.
+		err = app.Run()
+		assert.NoError(t, err, "App should be able to run again (idempotent)")
+	})
 
 }

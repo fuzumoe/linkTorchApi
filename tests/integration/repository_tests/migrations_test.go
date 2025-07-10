@@ -20,7 +20,7 @@ func TestMigrate_MySQLIntegration(t *testing.T) {
 		err := repository.Migrate(db)
 		assert.NoError(t, err, "migrations should run without error")
 
-		// Verify: Each model’s table exists
+		// Verify: Each model's table exists
 		migrator := db.Migrator()
 		for _, m := range model.AllModels {
 			exists := migrator.HasTable(m)
