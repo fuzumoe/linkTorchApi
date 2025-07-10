@@ -1,139 +1,170 @@
 package repository_test
 
 import (
-	"regexp"
 	"testing"
-	"time"
 
-	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gorm.io/driver/mysql"
-	"gorm.io/gorm"
 
 	"github.com/fuzumoe/urlinsight-backend/internal/model"
 	"github.com/fuzumoe/urlinsight-backend/internal/repository"
+	"github.com/fuzumoe/urlinsight-backend/tests/integration"
 )
 
-// setupMockDB initializes a GORM DB backed by sqlmock.
-func setupMockDB(t *testing.T) (*gorm.DB, sqlmock.Sqlmock) {
-	db, mock, err := sqlmock.New()
-	require.NoError(t, err)
+func TestAnalysisResultRepo_Integration(t *testing.T) {
+	// Get a clean database state
+	db := integration.SetupTest(t)
 
-	gormDB, err := gorm.Open(mysql.New(mysql.Config{
-		Conn:                      db,
-		SkipInitializeWithVersion: true,
-	}), &gorm.Config{})
-	require.NoError(t, err)
+	// Create repositories
+	analysisRepo := repository.NewAnalysisResultRepo(db)
+	urlRepo := repository.NewURLRepo(db)
+	userRepo := repository.NewUserRepo(db)
 
-	return gormDB, mock
-}
+	// First create a test user and URL (needed for analysis result foreign key)
+	testUser := &model.User{
+		Username: "analysisowner",
+		Email:    "analysisowner@example.com",
+		Password: "password123",
+	}
+	err := userRepo.Create(testUser)
+	require.NoError(t, err, "Should create user without error")
+	require.NotZero(t, testUser.ID, "User ID should be set")
 
-func TestAnalysisResultRepo(t *testing.T) {
+	testURL := &model.URL{
+		UserID:      testUser.ID,
+		OriginalURL: "https://example.com",
+		Status:      "queued",
+	}
+	err = urlRepo.Create(testURL)
+	require.NoError(t, err, "Should create URL without error")
+	require.NotZero(t, testURL.ID, "URL ID should be set")
+
+	// Test analysis data
+	testAnalysis := &model.AnalysisResult{
+		URLID:        testURL.ID,
+		HTMLVersion:  "HTML5",
+		Title:        "Test Page",
+		H1Count:      2,
+		H2Count:      5,
+		H3Count:      3,
+		H4Count:      0,
+		H5Count:      0,
+		H6Count:      0,
+		HasLoginForm: true,
+	}
+
 	t.Run("Create", func(t *testing.T) {
-		db, mock := setupMockDB(t)
-		repo := repository.NewAnalysisResultRepo(db)
-		testResult := &model.AnalysisResult{
-			URLID:        42,
-			HTMLVersion:  "HTML5",
-			Title:        "Test Page",
-			H1Count:      2,
-			H2Count:      5,
-			H3Count:      3,
+		err := analysisRepo.Create(testAnalysis)
+		require.NoError(t, err, "Should create analysis result without error")
+		assert.NotZero(t, testAnalysis.ID, "Analysis ID should be set after creation")
+		assert.False(t, testAnalysis.CreatedAt.IsZero(), "CreatedAt should be set")
+		assert.False(t, testAnalysis.UpdatedAt.IsZero(), "UpdatedAt should be set")
+	})
+
+	t.Run("ListByURL", func(t *testing.T) {
+		// Create another analysis for the same URL
+		secondAnalysis := &model.AnalysisResult{
+			URLID:        testURL.ID,
+			HTMLVersion:  "HTML4",
+			Title:        "Updated Page",
+			H1Count:      1,
+			H2Count:      3,
+			H3Count:      2,
+			H4Count:      1,
+			H5Count:      0,
+			H6Count:      0,
+			HasLoginForm: false,
+		}
+		err := analysisRepo.Create(secondAnalysis)
+		require.NoError(t, err, "Should create second analysis")
+
+		// Create another URL and analysis for it
+		anotherURL := &model.URL{
+			UserID:      testUser.ID,
+			OriginalURL: "https://another-example.com",
+			Status:      "queued",
+		}
+		err = urlRepo.Create(anotherURL)
+		require.NoError(t, err, "Should create another URL")
+
+		otherURLAnalysis := &model.AnalysisResult{
+			URLID:        anotherURL.ID,
+			HTMLVersion:  "XHTML",
+			Title:        "Another Site",
+			H1Count:      1,
+			H2Count:      2,
+			H3Count:      1,
 			H4Count:      0,
 			H5Count:      0,
 			H6Count:      0,
 			HasLoginForm: true,
 		}
+		err = analysisRepo.Create(otherURLAnalysis)
+		require.NoError(t, err, "Should create analysis for other URL")
 
-		mock.ExpectBegin()
-		exec := mock.ExpectExec(regexp.QuoteMeta(
-			"INSERT INTO `analysis_results` (`url_id`,`html_version`,`title`,`h1_count`,`h2_count`,`h3_count`,`h4_count`,`h5_count`,`h6_count`,`has_login_form`,`created_at`,`updated_at`,`deleted_at`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-		))
-		exec.WithArgs(
-			testResult.URLID,
-			testResult.HTMLVersion,
-			testResult.Title,
-			testResult.H1Count,
-			testResult.H2Count,
-			testResult.H3Count,
-			testResult.H4Count,
-			testResult.H5Count,
-			testResult.H6Count,
-			testResult.HasLoginForm,
-			sqlmock.AnyArg(),
-			sqlmock.AnyArg(),
-			sqlmock.AnyArg(),
-		)
-		exec.WillReturnResult(sqlmock.NewResult(1, 1))
-		mock.ExpectCommit()
+		// Test listing analyses for our test URL
+		analyses, err := analysisRepo.ListByURL(testURL.ID)
+		require.NoError(t, err, "Should list analyses by URL")
+		assert.Len(t, analyses, 2, "Should have 2 analyses for test URL")
 
-		err := repo.Create(testResult)
-		assert.NoError(t, err)
-		assert.Equal(t, uint(1), testResult.ID)
-		assert.NoError(t, mock.ExpectationsWereMet())
-	})
+		// Verify the returned analyses belong to our test URL
+		for _, a := range analyses {
+			assert.Equal(t, testURL.ID, a.URLID, "Analysis should belong to test URL")
+		}
 
-	t.Run("ListByURL", func(t *testing.T) {
-		db, mock := setupMockDB(t)
-		repo := repository.NewAnalysisResultRepo(db)
-		urlID := uint(5)
-
-		// Return two rows with proper time.Time values
-		mock.ExpectQuery(regexp.QuoteMeta(
-			"SELECT * FROM `analysis_results` WHERE url_id = ?",
-		)).WithArgs(urlID).WillReturnRows(
-			sqlmock.NewRows([]string{
-				"id", "url_id", "html_version", "title", "h1_count", "h2_count", "h3_count",
-				"h4_count", "h5_count", "h6_count", "has_login_form", "created_at", "updated_at", "deleted_at",
-			}).
-				AddRow(
-					1, urlID, "HTML5", "First Analysis", 2, 5, 3, 0, 0, 0, true,
-					time.Date(2025, 7, 10, 0, 0, 0, 0, time.UTC),
-					time.Date(2025, 7, 10, 0, 0, 0, 0, time.UTC),
-					nil,
-				).
-				AddRow(
-					2, urlID, "HTML4", "Second Analysis", 1, 3, 2, 1, 0, 0, false,
-					time.Date(2025, 7, 11, 0, 0, 0, 0, time.UTC),
-					time.Date(2025, 7, 11, 0, 0, 0, 0, time.UTC),
-					nil,
-				),
-		)
-
-		results, err := repo.ListByURL(urlID)
-		assert.NoError(t, err)
-		assert.Len(t, results, 2)
-
-		// Verify first result
-		assert.Equal(t, "HTML5", results[0].HTMLVersion)
-		assert.Equal(t, "First Analysis", results[0].Title)
-		assert.Equal(t, 2, results[0].H1Count)
-		assert.Equal(t, 5, results[0].H2Count)
-		assert.True(t, results[0].HasLoginForm)
-
-		// Verify second result
-		assert.Equal(t, "HTML4", results[1].HTMLVersion)
-		assert.Equal(t, "Second Analysis", results[1].Title)
-		assert.Equal(t, 1, results[1].H1Count)
-		assert.Equal(t, 3, results[1].H2Count)
-		assert.False(t, results[1].HasLoginForm)
-
-		assert.NoError(t, mock.ExpectationsWereMet())
+		// Test listing for the other URL
+		otherURLAnalyses, err := analysisRepo.ListByURL(anotherURL.ID)
+		require.NoError(t, err, "Should list analyses for other URL")
+		assert.Len(t, otherURLAnalyses, 1, "Should have 1 analysis for other URL")
+		assert.Equal(t, anotherURL.ID, otherURLAnalyses[0].URLID, "Analysis should belong to other URL")
+		assert.Equal(t, "XHTML", otherURLAnalyses[0].HTMLVersion)
+		assert.Equal(t, "Another Site", otherURLAnalyses[0].Title)
 	})
 
 	t.Run("ListByURL_EmptyResult", func(t *testing.T) {
-		db, mock := setupMockDB(t)
-		repo := repository.NewAnalysisResultRepo(db)
-		urlID := uint(999)
+		// Create a URL without analyses
+		emptyURL := &model.URL{
+			UserID:      testUser.ID,
+			OriginalURL: "https://empty-analysis.com",
+			Status:      "queued",
+		}
+		err := urlRepo.Create(emptyURL)
+		require.NoError(t, err, "Should create empty URL")
 
-		mock.ExpectQuery(regexp.QuoteMeta(
-			"SELECT * FROM `analysis_results` WHERE url_id = ?",
-		)).WithArgs(urlID).WillReturnRows(sqlmock.NewRows([]string{}))
-
-		results, err := repo.ListByURL(urlID)
-		assert.NoError(t, err)
-		assert.Empty(t, results)
-		assert.NoError(t, mock.ExpectationsWereMet())
+		// Should return empty slice, not error
+		analyses, err := analysisRepo.ListByURL(emptyURL.ID)
+		require.NoError(t, err, "Should not error for URL without analyses")
+		assert.Empty(t, analyses, "Should return empty slice for URL without analyses")
 	})
+
+	t.Run("Verify_Through_URL_Preload", func(t *testing.T) {
+		// Verify that analyses are correctly associated with URLs by checking preloading
+		foundURL, err := urlRepo.FindByID(testURL.ID)
+		require.NoError(t, err, "Should find URL with preloaded analyses")
+
+		// Verify we have two analysis results
+		assert.Len(t, foundURL.AnalysisResults, 2, "URL should have 2 preloaded analyses")
+
+		// Check that the preloaded analyses have the correct data
+		var foundOriginal, foundSecond bool
+		for _, ar := range foundURL.AnalysisResults {
+			if ar.HTMLVersion == "HTML5" && ar.Title == "Test Page" {
+				foundOriginal = true
+				assert.Equal(t, 2, ar.H1Count)
+				assert.Equal(t, 5, ar.H2Count)
+				assert.True(t, ar.HasLoginForm)
+			}
+			if ar.HTMLVersion == "HTML4" && ar.Title == "Updated Page" {
+				foundSecond = true
+				assert.Equal(t, 1, ar.H1Count)
+				assert.Equal(t, 3, ar.H2Count)
+				assert.False(t, ar.HasLoginForm)
+			}
+		}
+
+		assert.True(t, foundOriginal, "Should find original analysis in preloaded data")
+		assert.True(t, foundSecond, "Should find second analysis in preloaded data")
+	})
+
+	integration.CleanTestData(t)
 }

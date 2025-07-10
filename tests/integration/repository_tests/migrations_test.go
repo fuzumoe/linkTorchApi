@@ -32,6 +32,6 @@ func TestMigrate_MySQLIntegration(t *testing.T) {
 		assert.NoError(t, err, "migrations should be idempotent")
 	})
 
-	integration.CleanTestData(t) // Clean up test data after tests
+	integration.CleanTestData(t)
 
 }
