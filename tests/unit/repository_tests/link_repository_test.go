@@ -6,12 +6,13 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/fuzumoe/urlinsight-backend/internal/model"
-	"github.com/fuzumoe/urlinsight-backend/internal/repository"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
+
+	"github.com/fuzumoe/urlinsight-backend/internal/model"
+	"github.com/fuzumoe/urlinsight-backend/internal/repository"
 )
 
 // setupLinkMockDB initializes a new GORM DB instance backed by sqlmock.

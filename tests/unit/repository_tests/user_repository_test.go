@@ -1,7 +1,9 @@
 package repository_test
 
 import (
+	"regexp"
 	"testing"
+	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
@@ -13,118 +15,192 @@ import (
 	"github.com/fuzumoe/urlinsight-backend/internal/repository"
 )
 
-func setupUserRepoMock(t *testing.T) (*gorm.DB, sqlmock.Sqlmock) {
-	// Create sqlmock DB
-	sqlDB, mock, err := sqlmock.New()
+// setupUserMockDB initializes a GORM DB backed by sqlmock for user repository tests
+func setupUserMockDB(t *testing.T) (*gorm.DB, sqlmock.Sqlmock) {
+	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 
-	// Create a GORM DB using the mock connection.
-	dialector := mysql.New(mysql.Config{
-		Conn:                      sqlDB,
+	gormDB, err := gorm.Open(mysql.New(mysql.Config{
+		Conn:                      db,
 		SkipInitializeWithVersion: true,
-	})
-	gormDB, err := gorm.Open(dialector, &gorm.Config{})
+	}), &gorm.Config{})
 	require.NoError(t, err)
 
 	return gormDB, mock
 }
 
-func TestUserRepo(t *testing.T) {
-	t.Run("Create Success", func(t *testing.T) {
-		db, mock := setupUserRepoMock(t)
+func TestUserRepository(t *testing.T) {
+	// Define a fixed timestamp for testing
+	fixedTime := time.Now()
+
+	t.Run("Create", func(t *testing.T) {
+		db, mock := setupUserMockDB(t)
 		repo := repository.NewUserRepo(db)
+		user := &model.User{
+			Username: "testuser",
+			Email:    "test@example.com",
+			Password: "hashedpassword",
+		}
 
-		user := &model.User{Username: "alice", Email: "a@b.com", Password: "pass"}
-
-		// Expectation: INSERT INTO `users`
 		mock.ExpectBegin()
-		// Use AnyArg() for dynamic fields like timestamps and IDs.
-		mock.ExpectExec("INSERT INTO `users`").WillReturnResult(sqlmock.NewResult(1, 1))
+		mock.ExpectExec(regexp.QuoteMeta(
+			"INSERT INTO `users` (`username`,`email`,`password`,`created_at`,`updated_at`,`deleted_at`) VALUES (?,?,?,?,?,?)",
+		)).WithArgs(
+			user.Username,
+			user.Email,
+			user.Password,
+			sqlmock.AnyArg(), // CreatedAt
+			sqlmock.AnyArg(), // UpdatedAt
+			sqlmock.AnyArg(), // DeletedAt
+		).WillReturnResult(sqlmock.NewResult(1, 1))
 		mock.ExpectCommit()
 
 		err := repo.Create(user)
 		assert.NoError(t, err)
+		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 
-	t.Run("FindByID NotFound", func(t *testing.T) {
-		db, mock := setupUserRepoMock(t)
+	t.Run("FindByID", func(t *testing.T) {
+		db, mock := setupUserMockDB(t)
 		repo := repository.NewUserRepo(db)
+		userID := uint(1)
 
-		// Expect query with soft delete condition and LIMIT 1.
-		mock.ExpectQuery("SELECT .* FROM `users` WHERE .*`id` = .* AND .*`deleted_at` IS NULL.*").
-			WithArgs(42, 1). // GORM passes LIMIT as a separate arg.
-			WillReturnError(gorm.ErrRecordNotFound)
-
-		u, err := repo.FindByID(42)
-		assert.Nil(t, u)
-		assert.ErrorIs(t, err, gorm.ErrRecordNotFound)
-	})
-
-	t.Run("FindByEmail Success", func(t *testing.T) {
-		db, mock := setupUserRepoMock(t)
-		repo := repository.NewUserRepo(db)
-
-		example := &model.User{ID: 7, Username: "bob", Email: "bob@c.com"}
 		rows := sqlmock.NewRows([]string{"id", "username", "email", "password", "created_at", "updated_at", "deleted_at"}).
-			AddRow(example.ID, example.Username, example.Email, example.Password, example.CreatedAt, example.UpdatedAt, nil)
+			AddRow(userID, "testuser", "test@example.com", "hashedpassword", fixedTime, fixedTime, nil)
 
-		// Expect query including soft delete condition and LIMIT param.
-		mock.ExpectQuery("SELECT .* FROM `users` WHERE email = .* AND .*`deleted_at` IS NULL.*").
-			WithArgs(example.Email, 1).
-			WillReturnRows(rows)
+		mock.ExpectQuery(regexp.QuoteMeta(
+			"SELECT * FROM `users` WHERE `users`.`id` = ? AND `users`.`deleted_at` IS NULL ORDER BY `users`.`id` LIMIT ?",
+		)).WithArgs(userID, 1).WillReturnRows(rows)
 
-		user, err := repo.FindByEmail(example.Email)
+		user, err := repo.FindByID(userID)
 		assert.NoError(t, err)
-		assert.Equal(t, example.ID, user.ID)
-		assert.Equal(t, example.Email, user.Email)
+		assert.NotNil(t, user)
+		assert.Equal(t, userID, user.ID)
+		assert.Equal(t, "testuser", user.Username)
+		assert.Equal(t, "test@example.com", user.Email)
+		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 
-	t.Run("ListAll Success", func(t *testing.T) {
-		db, mock := setupUserRepoMock(t)
+	t.Run("FindByID Not Found", func(t *testing.T) {
+		db, mock := setupUserMockDB(t)
 		repo := repository.NewUserRepo(db)
+		userID := uint(999)
+
+		mock.ExpectQuery(regexp.QuoteMeta(
+			"SELECT * FROM `users` WHERE `users`.`id` = ? AND `users`.`deleted_at` IS NULL ORDER BY `users`.`id` LIMIT ?",
+		)).WithArgs(userID, 1).WillReturnError(gorm.ErrRecordNotFound)
+
+		user, err := repo.FindByID(userID)
+		assert.Error(t, err)
+		assert.Nil(t, user)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("FindByEmail", func(t *testing.T) {
+		db, mock := setupUserMockDB(t)
+		repo := repository.NewUserRepo(db)
+		email := "test@example.com"
 
 		rows := sqlmock.NewRows([]string{"id", "username", "email", "password", "created_at", "updated_at", "deleted_at"}).
-			AddRow(1, "u1", "a@b", "p", nil, nil, nil).
-			AddRow(2, "u2", "c@d", "q", nil, nil, nil)
+			AddRow(1, "testuser", email, "hashedpassword", fixedTime, fixedTime, nil)
 
-		// Expect query with soft delete condition.
-		mock.ExpectQuery("SELECT .* FROM `users` WHERE .*`deleted_at` IS NULL.*").
-			WillReturnRows(rows)
+		// Note: GORM is generating a query without backticks around the email column in this WHERE clause
+		mock.ExpectQuery(regexp.QuoteMeta(
+			"SELECT * FROM `users` WHERE email = ? AND `users`.`deleted_at` IS NULL ORDER BY `users`.`id` LIMIT ?",
+		)).WithArgs(email, 1).WillReturnRows(rows)
 
-		users, err := repo.ListAll()
+		user, err := repo.FindByEmail(email)
+		assert.NoError(t, err)
+		assert.NotNil(t, user)
+		assert.Equal(t, email, user.Email)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("FindByEmail Not Found", func(t *testing.T) {
+		db, mock := setupUserMockDB(t)
+		repo := repository.NewUserRepo(db)
+		email := "nonexistent@example.com"
+
+		mock.ExpectQuery(regexp.QuoteMeta(
+			"SELECT * FROM `users` WHERE email = ? AND `users`.`deleted_at` IS NULL ORDER BY `users`.`id` LIMIT ?",
+		)).WithArgs(email, 1).WillReturnError(gorm.ErrRecordNotFound)
+
+		user, err := repo.FindByEmail(email)
+		assert.Error(t, err)
+		assert.Nil(t, user)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("ListAll", func(t *testing.T) {
+		db, mock := setupUserMockDB(t)
+		repo := repository.NewUserRepo(db)
+		pagination := repository.Pagination{Page: 1, PageSize: 10}
+
+		rows := sqlmock.NewRows([]string{"id", "username", "email", "password", "created_at", "updated_at", "deleted_at"}).
+			AddRow(1, "user1", "user1@example.com", "hash1", fixedTime, fixedTime, nil).
+			AddRow(2, "user2", "user2@example.com", "hash2", fixedTime, fixedTime, nil)
+
+		// Expecting query without OFFSET clause as generated by the underlying GORM
+		mock.ExpectQuery(regexp.QuoteMeta(
+			"SELECT * FROM `users` WHERE `users`.`deleted_at` IS NULL LIMIT ?",
+		)).WithArgs(10).WillReturnRows(rows)
+
+		users, err := repo.ListAll(pagination)
 		assert.NoError(t, err)
 		assert.Len(t, users, 2)
+		assert.Equal(t, "user1", users[0].Username)
+		assert.Equal(t, "user2", users[1].Username)
+		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 
-	t.Run("Delete NotFound", func(t *testing.T) {
-		db, mock := setupUserRepoMock(t)
+	t.Run("ListAll Empty", func(t *testing.T) {
+		db, mock := setupUserMockDB(t)
 		repo := repository.NewUserRepo(db)
+		pagination := repository.Pagination{Page: 1, PageSize: 10}
 
-		// GORM wraps the delete (soft delete) in a transaction.
-		mock.ExpectBegin()
-		// For soft delete, GORM issues an UPDATE on the `deleted_at` field.
-		mock.ExpectExec("UPDATE `users` SET .*`deleted_at`.*WHERE .*`id` = .*").
-			WithArgs(sqlmock.AnyArg(), 100). // First arg is timestamp, second is user ID.
-			WillReturnResult(sqlmock.NewResult(0, 0))
-		mock.ExpectCommit()
+		rows := sqlmock.NewRows([]string{"id", "username", "email", "password", "created_at", "updated_at", "deleted_at"})
 
-		err := repo.Delete(100)
-		assert.EqualError(t, err, "user not found")
-	})
+		mock.ExpectQuery(regexp.QuoteMeta(
+			"SELECT * FROM `users` WHERE `users`.`deleted_at` IS NULL LIMIT ?",
+		)).WithArgs(10).WillReturnRows(rows)
 
-	t.Run("Delete Success", func(t *testing.T) {
-		db, mock := setupUserRepoMock(t)
-		repo := repository.NewUserRepo(db)
-
-		// GORM wraps the delete (soft delete) in a transaction.
-		mock.ExpectBegin()
-		// For soft delete, it's an UPDATE on the `deleted_at` field.
-		mock.ExpectExec("UPDATE `users` SET .*`deleted_at`.*WHERE .*`id` = .*").
-			WithArgs(sqlmock.AnyArg(), 5). // First arg is timestamp, second is user ID.
-			WillReturnResult(sqlmock.NewResult(0, 1))
-		mock.ExpectCommit()
-
-		err := repo.Delete(5)
+		users, err := repo.ListAll(pagination)
 		assert.NoError(t, err)
+		assert.Empty(t, users)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("Delete", func(t *testing.T) {
+		db, mock := setupUserMockDB(t)
+		repo := repository.NewUserRepo(db)
+		userID := uint(1)
+
+		mock.ExpectBegin()
+		mock.ExpectExec(regexp.QuoteMeta(
+			"UPDATE `users` SET `deleted_at`=? WHERE `users`.`id` = ? AND `users`.`deleted_at` IS NULL",
+		)).WithArgs(sqlmock.AnyArg(), userID).WillReturnResult(sqlmock.NewResult(0, 1))
+		mock.ExpectCommit()
+
+		err := repo.Delete(userID)
+		assert.NoError(t, err)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("Delete Not Found", func(t *testing.T) {
+		db, mock := setupUserMockDB(t)
+		repo := repository.NewUserRepo(db)
+		userID := uint(999)
+
+		mock.ExpectBegin()
+		mock.ExpectExec(regexp.QuoteMeta(
+			"UPDATE `users` SET `deleted_at`=? WHERE `users`.`id` = ? AND `users`.`deleted_at` IS NULL",
+		)).WithArgs(sqlmock.AnyArg(), userID).WillReturnResult(sqlmock.NewResult(0, 0))
+		// For this test, the repository returns "user not found" and calls Commit
+		mock.ExpectCommit()
+
+		err := repo.Delete(userID)
+		assert.Error(t, err)
+		assert.Equal(t, "user not found", err.Error())
+		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }

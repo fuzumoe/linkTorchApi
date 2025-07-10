@@ -80,10 +80,10 @@ func TestAnalysisResultRepo(t *testing.T) {
 		urlID := uint(5)
 		pagination := repository.Pagination{Page: 1, PageSize: 10}
 
-		// Return two rows with proper time.Time values
+		// Updated expected query: no OFFSET clause is present
 		mock.ExpectQuery(regexp.QuoteMeta(
-			"SELECT * FROM `analysis_results` WHERE url_id = ? AND `analysis_results`.`deleted_at` IS NULL LIMIT ? OFFSET ?",
-		)).WithArgs(urlID, pagination.Limit(), pagination.Offset()).WillReturnRows(
+			"SELECT * FROM `analysis_results` WHERE url_id = ? AND `analysis_results`.`deleted_at` IS NULL LIMIT ?",
+		)).WithArgs(urlID, pagination.Limit()).WillReturnRows(
 			sqlmock.NewRows([]string{
 				"id", "url_id", "html_version", "title", "h1_count", "h2_count", "h3_count",
 				"h4_count", "h5_count", "h6_count", "has_login_form", "created_at", "updated_at", "deleted_at",
@@ -130,8 +130,8 @@ func TestAnalysisResultRepo(t *testing.T) {
 		pagination := repository.Pagination{Page: 1, PageSize: 10}
 
 		mock.ExpectQuery(regexp.QuoteMeta(
-			"SELECT * FROM `analysis_results` WHERE url_id = ? AND `analysis_results`.`deleted_at` IS NULL LIMIT ? OFFSET ?",
-		)).WithArgs(urlID, pagination.Limit(), pagination.Offset()).WillReturnRows(sqlmock.NewRows([]string{}))
+			"SELECT * FROM `analysis_results` WHERE url_id = ? AND `analysis_results`.`deleted_at` IS NULL LIMIT ?",
+		)).WithArgs(urlID, pagination.Limit()).WillReturnRows(sqlmock.NewRows([]string{}))
 
 		results, err := repo.ListByURL(urlID, pagination)
 		assert.NoError(t, err)
@@ -143,8 +143,10 @@ func TestAnalysisResultRepo(t *testing.T) {
 		db, mock := setupAnaMockDB(t)
 		repo := repository.NewAnalysisResultRepo(db)
 		urlID := uint(5)
+		// For page 2 with PageSize = 2, Limit() = 2 and Offset() = 2
 		pagination := repository.Pagination{Page: 2, PageSize: 2}
 
+		// Fix: Include OFFSET clause in the query and add the pagination.Offset() to the args
 		mock.ExpectQuery(regexp.QuoteMeta(
 			"SELECT * FROM `analysis_results` WHERE url_id = ? AND `analysis_results`.`deleted_at` IS NULL LIMIT ? OFFSET ?",
 		)).WithArgs(urlID, pagination.Limit(), pagination.Offset()).WillReturnRows(
@@ -170,7 +172,7 @@ func TestAnalysisResultRepo(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, results, 2)
 
-		// Verify pagination works by checking we got the "second page" of results
+		// Verify pagination: we expect the "second page" results here.
 		assert.Equal(t, "Third Analysis", results[0].Title)
 		assert.Equal(t, "Fourth Analysis", results[1].Title)
 
