@@ -32,13 +32,13 @@ func TestNewJTI(t *testing.T) {
 	jti1 := model.NewJTI()
 	jti2 := model.NewJTI()
 
-	// JTI should not be empty
+	// JTI should not be empty.
 	assert.NotEmpty(t, jti1)
 
-	// Two generated JTIs should be different (they're UUIDs)
+	// Two generated JTIs should be different.
 	assert.NotEqual(t, jti1, jti2)
 
-	// Length should be consistent with UUID format
+	// Length should be consistent with UUID format.
 	assert.Len(t, jti1, 36)
 }
 
@@ -58,7 +58,7 @@ func TestBlacklistedToken_ToDTO(t *testing.T) {
 
 	dto := token.ToDTO()
 
-	// Verify DTO has correct values
+	// Verify DTO has correct values.
 	assert.Equal(t, "test-jti-value", dto.JTI)
 	assert.Equal(t, now, dto.ExpiresAt)
 
