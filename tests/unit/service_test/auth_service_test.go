@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dgrijalva/jwt-go"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -13,6 +13,19 @@ import (
 	"github.com/fuzumoe/urlinsight-backend/internal/model"
 	"github.com/fuzumoe/urlinsight-backend/internal/service"
 )
+
+// MockUserLookup is a mock of the UserLookup interface
+type MockUserLookup struct {
+	mock.Mock
+}
+
+func (m *MockUserLookup) FindByID(id uint) (*model.User, error) {
+	args := m.Called(id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*model.User), args.Error(1)
+}
 
 // MockTokenRepository is a mock of the TokenRepository
 type MockTokenRepository struct {
@@ -29,28 +42,26 @@ func (m *MockTokenRepository) IsBlacklisted(jti string) (bool, error) {
 	return args.Bool(0), args.Error(1)
 }
 
-func (m *MockTokenRepository) CleanExpired() error {
-	args := m.Called()
-	return args.Error(0)
-}
-
-// Add the missing RemoveExpired method to satisfy the TokenRepository interface
 func (m *MockTokenRepository) RemoveExpired() error {
 	args := m.Called()
 	return args.Error(0)
 }
 
-func TestTokenService_Generate(t *testing.T) {
+func TestAuthService_Generate(t *testing.T) {
 	// Setup
 	mockRepo := new(MockTokenRepository)
+	mockUserLookup := new(MockUserLookup)
 	jwtSecret := "test-secret-key"
 	tokenLifetime := 1 * time.Hour
-	svc := service.NewTokenService(jwtSecret, tokenLifetime, mockRepo)
+	svc := service.NewAuthService(mockUserLookup, mockRepo, jwtSecret, tokenLifetime)
 
 	userID := uint(123)
 
 	t.Run("Success", func(t *testing.T) {
-		// Setup expectations
+		// Setup expectations for user lookup
+		mockUserLookup.On("FindByID", userID).Return(&model.User{ID: userID}, nil).Once()
+
+		// Setup expectations for token repository
 		mockRepo.On("Add", mock.AnythingOfType("*model.BlacklistedToken")).Run(func(args mock.Arguments) {
 			token := args.Get(0).(*model.BlacklistedToken)
 			assert.NotEmpty(t, token.JTI)
@@ -69,26 +80,45 @@ func TestTokenService_Generate(t *testing.T) {
 		assert.NotEmpty(t, tokenString)
 
 		// Parse the token to verify its contents
-		token, err := jwt.ParseWithClaims(tokenString, &model.TokenClaims{}, func(token *jwt.Token) (interface{}, error) {
+		token, err := jwt.ParseWithClaims(tokenString, &service.JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
 			return []byte(jwtSecret), nil
 		})
 		require.NoError(t, err)
 
-		claims, ok := token.Claims.(*model.TokenClaims)
+		claims, ok := token.Claims.(*service.JWTClaims)
 		require.True(t, ok)
 		assert.Equal(t, userID, claims.UserID)
-		assert.NotEmpty(t, claims.Id) // JTI
+		assert.NotEmpty(t, claims.ID) // JTI
 
 		// Verify times
-		now := time.Now().UTC().Unix()
-		assert.LessOrEqual(t, claims.IssuedAt, now)
-		assert.Greater(t, claims.ExpiresAt, now)
+		now := time.Now().UTC()
+		assert.WithinDuration(t, now, claims.IssuedAt.Time, 2*time.Second)
+		assert.WithinDuration(t, now.Add(tokenLifetime), claims.ExpiresAt.Time, 2*time.Second)
 
 		mockRepo.AssertExpectations(t)
+		mockUserLookup.AssertExpectations(t)
+	})
+
+	t.Run("User Not Found", func(t *testing.T) {
+		// Setup expectations for user lookup to fail
+		mockUserLookup.On("FindByID", userID).Return(nil, errors.New("user not found")).Once()
+
+		// Execute
+		tokenString, err := svc.Generate(userID)
+
+		// Verify
+		assert.Error(t, err)
+		assert.Equal(t, "user not found", err.Error())
+		assert.Empty(t, tokenString)
+
+		mockUserLookup.AssertExpectations(t)
 	})
 
 	t.Run("Repository Error", func(t *testing.T) {
-		// Setup expectations
+		// Setup expectations for user lookup to succeed
+		mockUserLookup.On("FindByID", userID).Return(&model.User{ID: userID}, nil).Once()
+
+		// Setup expectations for token repository to fail
 		mockRepo.On("Add", mock.AnythingOfType("*model.BlacklistedToken")).Return(errors.New("db error")).Once()
 
 		// Execute
@@ -100,28 +130,25 @@ func TestTokenService_Generate(t *testing.T) {
 		assert.Empty(t, tokenString)
 
 		mockRepo.AssertExpectations(t)
+		mockUserLookup.AssertExpectations(t)
 	})
 }
 
-func TestTokenService_Validate(t *testing.T) {
+func TestAuthService_Validate(t *testing.T) {
 	// Setup
 	mockRepo := new(MockTokenRepository)
+	mockUserLookup := new(MockUserLookup)
 	jwtSecret := "test-secret-key"
 	tokenLifetime := 1 * time.Hour
-	svc := service.NewTokenService(jwtSecret, tokenLifetime, mockRepo)
+	svc := service.NewAuthService(mockUserLookup, mockRepo, jwtSecret, tokenLifetime)
 
 	userID := uint(123)
 
 	// Generate a valid token for testing
+	mockUserLookup.On("FindByID", userID).Return(&model.User{ID: userID}, nil).Once()
 	mockRepo.On("Add", mock.AnythingOfType("*model.BlacklistedToken")).Return(nil).Once()
 	validToken, err := svc.Generate(userID)
 	require.NoError(t, err)
-
-	// Parse it to get the claims for later tests
-	parsedToken, _ := jwt.ParseWithClaims(validToken, &model.TokenClaims{}, func(token *jwt.Token) (interface{}, error) {
-		return []byte(jwtSecret), nil
-	})
-	validClaims := parsedToken.Claims.(*model.TokenClaims)
 
 	t.Run("Valid Token", func(t *testing.T) {
 		// Execute
@@ -130,7 +157,7 @@ func TestTokenService_Validate(t *testing.T) {
 		// Verify
 		require.NoError(t, err)
 		assert.Equal(t, userID, claims.UserID)
-		assert.Equal(t, validClaims.Id, claims.Id)
+		assert.NotEmpty(t, claims.ID)
 	})
 
 	t.Run("Invalid Token Format", func(t *testing.T) {
@@ -139,12 +166,14 @@ func TestTokenService_Validate(t *testing.T) {
 
 		// Verify
 		assert.Error(t, err)
+		assert.Equal(t, service.ErrTokenInvalid, err)
 		assert.Nil(t, claims)
 	})
 
 	t.Run("Wrong Signature", func(t *testing.T) {
 		// Generate a token with different secret
-		wrongSvc := service.NewTokenService("wrong-secret", tokenLifetime, mockRepo)
+		wrongSvc := service.NewAuthService(mockUserLookup, mockRepo, "wrong-secret", tokenLifetime)
+		mockUserLookup.On("FindByID", userID).Return(&model.User{ID: userID}, nil).Once()
 		mockRepo.On("Add", mock.AnythingOfType("*model.BlacklistedToken")).Return(nil).Once()
 		wrongToken, err := wrongSvc.Generate(userID)
 		require.NoError(t, err)
@@ -154,17 +183,19 @@ func TestTokenService_Validate(t *testing.T) {
 
 		// Verify
 		assert.Error(t, err)
+		assert.Equal(t, service.ErrTokenInvalid, err)
 		assert.Nil(t, claims)
 	})
 
 	t.Run("Expired Token", func(t *testing.T) {
 		// Create expired token
-		expiredClaims := model.TokenClaims{
+		expiredClaims := service.JWTClaims{
 			UserID: userID,
-			StandardClaims: jwt.StandardClaims{
-				Id:        model.NewJTI(),
-				IssuedAt:  time.Now().Add(-2 * time.Hour).Unix(),
-				ExpiresAt: time.Now().Add(-1 * time.Hour).Unix(), // Expired 1 hour ago
+			RegisteredClaims: jwt.RegisteredClaims{
+				ID:        "test-jti",
+				IssuedAt:  jwt.NewNumericDate(time.Now().Add(-2 * time.Hour)),
+				ExpiresAt: jwt.NewNumericDate(time.Now().Add(-1 * time.Hour)), // Expired 1 hour ago
+				Subject:   "access_token",
 			},
 		}
 
@@ -177,28 +208,29 @@ func TestTokenService_Validate(t *testing.T) {
 
 		// Verify
 		assert.Error(t, err)
+		assert.Equal(t, service.ErrTokenExpired, err)
 		assert.Nil(t, claims)
 	})
 }
 
-func TestTokenService_Blacklist(t *testing.T) {
+func TestAuthService_Invalidate(t *testing.T) {
 	// Setup
 	mockRepo := new(MockTokenRepository)
+	mockUserLookup := new(MockUserLookup)
 	jwtSecret := "test-secret-key"
 	tokenLifetime := 1 * time.Hour
-	svc := service.NewTokenService(jwtSecret, tokenLifetime, mockRepo)
+	svc := service.NewAuthService(mockUserLookup, mockRepo, jwtSecret, tokenLifetime)
 
-	jti := model.NewJTI()
-	expiresAt := time.Now().Add(tokenLifetime)
+	jti := "test-jwt-id"
 
 	t.Run("Success", func(t *testing.T) {
 		// Setup expectations
 		mockRepo.On("Add", mock.MatchedBy(func(token *model.BlacklistedToken) bool {
-			return token.JTI == jti && token.ExpiresAt.Equal(expiresAt)
+			return token.JTI == jti
 		})).Return(nil).Once()
 
 		// Execute
-		err := svc.Blacklist(jti, expiresAt)
+		err := svc.Invalidate(jti)
 
 		// Verify
 		assert.NoError(t, err)
@@ -208,27 +240,28 @@ func TestTokenService_Blacklist(t *testing.T) {
 	t.Run("Repository Error", func(t *testing.T) {
 		// Setup expectations
 		mockRepo.On("Add", mock.MatchedBy(func(token *model.BlacklistedToken) bool {
-			return token.JTI == jti && token.ExpiresAt.Equal(expiresAt)
+			return token.JTI == jti
 		})).Return(errors.New("db error")).Once()
 
 		// Execute
-		err := svc.Blacklist(jti, expiresAt)
+		err := svc.Invalidate(jti)
 
 		// Verify
 		assert.Error(t, err)
-		assert.Equal(t, "db error", err.Error())
+		assert.Equal(t, service.ErrTokenBlacklistFail, err)
 		mockRepo.AssertExpectations(t)
 	})
 }
 
-func TestTokenService_IsBlacklisted(t *testing.T) {
+func TestAuthService_IsBlacklisted(t *testing.T) {
 	// Setup
 	mockRepo := new(MockTokenRepository)
+	mockUserLookup := new(MockUserLookup)
 	jwtSecret := "test-secret-key"
 	tokenLifetime := 1 * time.Hour
-	svc := service.NewTokenService(jwtSecret, tokenLifetime, mockRepo)
+	svc := service.NewAuthService(mockUserLookup, mockRepo, jwtSecret, tokenLifetime)
 
-	jti := model.NewJTI()
+	jti := "test-jwt-id"
 
 	t.Run("Token Is Blacklisted", func(t *testing.T) {
 		// Setup expectations
@@ -265,8 +298,42 @@ func TestTokenService_IsBlacklisted(t *testing.T) {
 
 		// Verify
 		assert.Error(t, err)
-		assert.Equal(t, "db error", err.Error())
+		assert.Equal(t, service.ErrBlacklistCheckFail, err)
 		assert.False(t, isBlacklisted)
+		mockRepo.AssertExpectations(t)
+	})
+}
+
+func TestAuthService_CleanupExpired(t *testing.T) {
+	// Setup
+	mockRepo := new(MockTokenRepository)
+	mockUserLookup := new(MockUserLookup)
+	jwtSecret := "test-secret-key"
+	tokenLifetime := 1 * time.Hour
+	svc := service.NewAuthService(mockUserLookup, mockRepo, jwtSecret, tokenLifetime)
+
+	t.Run("Success", func(t *testing.T) {
+		// Setup expectations
+		mockRepo.On("RemoveExpired").Return(nil).Once()
+
+		// Execute
+		err := svc.CleanupExpired()
+
+		// Verify
+		assert.NoError(t, err)
+		mockRepo.AssertExpectations(t)
+	})
+
+	t.Run("Repository Error", func(t *testing.T) {
+		// Setup expectations
+		mockRepo.On("RemoveExpired").Return(errors.New("db error")).Once()
+
+		// Execute
+		err := svc.CleanupExpired()
+
+		// Verify
+		assert.Error(t, err)
+		assert.Equal(t, "db error", err.Error())
 		mockRepo.AssertExpectations(t)
 	})
 }

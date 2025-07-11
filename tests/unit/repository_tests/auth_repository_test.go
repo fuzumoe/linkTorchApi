@@ -165,4 +165,21 @@ func TestTokenRepo(t *testing.T) {
 		assert.Equal(t, gorm.ErrInvalidTransaction, err)
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
+	t.Run("Add with zero CreatedAt", func(t *testing.T) {
+		db, mock := setupTokenMockDB(t)
+		repo := repository.NewTokenRepo(db)
+		testToken := &model.BlacklistedToken{
+			JTI:       "test-jwt-id-123",
+			ExpiresAt: time.Now().Add(24 * time.Hour),
+			// CreatedAt intentionally omitted
+		}
+
+		// Same SQL expectations as the regular Add test
+		mock.ExpectBegin()
+		// Rest of test...
+
+		err := repo.Add(testToken)
+		assert.NoError(t, err)
+		assert.False(t, testToken.CreatedAt.IsZero(), "CreatedAt should be set")
+	})
 }

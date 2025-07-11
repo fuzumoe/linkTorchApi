@@ -16,7 +16,6 @@ import (
 func TestAnalysisService_Integration(t *testing.T) {
 	// Setup test database.
 	db := integration.SetupTest(t)
-	defer integration.CleanTestData(t)
 
 	// Create repositories.
 	userRepo := repository.NewUserRepo(db)

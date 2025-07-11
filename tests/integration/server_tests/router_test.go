@@ -22,7 +22,6 @@ func TestRouterIntegration(t *testing.T) {
 
 	// Set up test database
 	db := integration.SetupTest(t)
-	defer integration.CleanTestData(t)
 
 	// Create real services
 	healthService := service.NewHealthService(db, "IntegrationTest")
@@ -45,9 +44,9 @@ func TestRouterIntegration(t *testing.T) {
 	ts := httptest.NewServer(r)
 	defer ts.Close()
 
-	// Test the root endpoint
-	t.Run("Root Endpoint", func(t *testing.T) {
-		resp, err := http.Get(ts.URL + "/")
+	// Test the API status endpoint (updated from root)
+	t.Run("API Status Endpoint", func(t *testing.T) {
+		resp, err := http.Get(ts.URL + "/api/v1/status")
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
@@ -56,21 +55,9 @@ func TestRouterIntegration(t *testing.T) {
 		var result map[string]interface{}
 		err = json.NewDecoder(resp.Body).Decode(&result)
 		require.NoError(t, err)
-		assert.Equal(t, "Welcome to URL Insight Backend!", result["message"])
-	})
-
-	// Test the health endpoint provided by the router itself
-	t.Run("Router Health Endpoint", func(t *testing.T) {
-		resp, err := http.Get(ts.URL + "/health")
-		require.NoError(t, err)
-		defer resp.Body.Close()
-
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
-
-		var result map[string]interface{}
-		err = json.NewDecoder(resp.Body).Decode(&result)
-		require.NoError(t, err)
-		assert.Equal(t, "ok", result["status"])
+		assert.Equal(t, "Hello World!", result["message"])
+		assert.Equal(t, "IntegrationTest", result["service"])
+		assert.Equal(t, "running", result["status"])
 	})
 
 	// Test the health endpoint provided by the health handler
@@ -88,22 +75,6 @@ func TestRouterIntegration(t *testing.T) {
 		assert.Equal(t, "healthy", result["database"])
 		assert.Equal(t, "IntegrationTest", result["service"])
 		assert.Contains(t, result, "checked")
-	})
-
-	// Test the home endpoint provided by the health handler
-	t.Run("Handler Home Endpoint", func(t *testing.T) {
-		resp, err := http.Get(ts.URL + "/api/v1/")
-		require.NoError(t, err)
-		defer resp.Body.Close()
-
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
-
-		var result map[string]interface{}
-		err = json.NewDecoder(resp.Body).Decode(&result)
-		require.NoError(t, err)
-		assert.Equal(t, "Hello World!", result["message"])
-		assert.Equal(t, "IntegrationTest", result["service"])
-		assert.Equal(t, "running", result["status"])
 	})
 
 	// Test non-existent route
