@@ -2,6 +2,7 @@ package middleware_test
 
 import (
 	"encoding/base64"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -9,159 +10,256 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/fuzumoe/urlinsight-backend/internal/middleware"
 	"github.com/fuzumoe/urlinsight-backend/internal/model"
-	"github.com/fuzumoe/urlinsight-backend/internal/repository"
 	"github.com/fuzumoe/urlinsight-backend/internal/service"
-	"github.com/fuzumoe/urlinsight-backend/tests/integration"
 )
 
-func TestBasicAuthMiddleware_Integration(t *testing.T) {
-	t.Run("BasicAuth success", func(t *testing.T) {
-		// Setup integration database.
-		db := integration.SetupTest(t)
-		defer integration.CleanTestData(t)
-
-		// Create user repository and service.
-		userRepo := repository.NewUserRepo(db)
-		// Assume NewUserService implements service.UserService.
-		userService := service.NewUserService(userRepo)
-
-		// Register a test user.
-		createInput := &model.CreateUserInput{
-			Email:    "user@example.com",
-			Password: "correctpassword",
-			Username: "testuser",
-		}
-		registeredUser, err := userService.Register(createInput)
-		require.NoError(t, err)
-		require.NotZero(t, registeredUser.ID)
-
-		// Setup Gin with the BasicAuthMiddleware.
-		router := gin.New()
-		router.Use(middleware.BasicAuthMiddleware(userService))
-		router.GET("/protected", func(c *gin.Context) {
-			c.String(http.StatusOK, "basic auth passed")
-		})
-
-		// Prepare a valid Basic Auth header.
-		cred := base64.StdEncoding.EncodeToString([]byte("user@example.com:correctpassword"))
-		req, err := http.NewRequest("GET", "/protected", nil)
-		require.NoError(t, err)
-		req.Header.Set("Authorization", "Basic "+cred)
-
-		w := httptest.NewRecorder()
-		router.ServeHTTP(w, req)
-		require.Equal(t, http.StatusOK, w.Code)
-		require.Equal(t, "basic auth passed", w.Body.String())
-	})
+// MockAuthService implements service.AuthService for testing.
+type MockAuthService struct {
+	mock.Mock
 }
 
-func TestJWTAuthMiddleware_Integration(t *testing.T) {
-	t.Run("JWTAuth success", func(t *testing.T) {
-		// Setup integration database.
-		db := integration.SetupTest(t)
-		defer integration.CleanTestData(t)
-
-		// Create repositories.
-		userRepo := repository.NewUserRepo(db)
-		tokenRepo := repository.NewTokenRepo(db)
-		// Create authService with required arguments:
-		authService := service.NewAuthService(userRepo, tokenRepo, "secret", time.Hour)
-		// Use userRepo as the user lookup.
-		userService := service.NewUserService(userRepo)
-
-		// Register a test user.
-		createInput := &model.CreateUserInput{
-			Email:    "user@example.com",
-			Password: "correctpassword",
-			Username: "jwtuser",
-		}
-		registeredUser, err := userService.Register(createInput)
-		require.NoError(t, err)
-		require.NotZero(t, registeredUser.ID)
-
-		// Generate a JWT token for the user.
-		tokenString, err := authService.Generate(registeredUser.ID)
-		require.NoError(t, err)
-		require.NotEmpty(t, tokenString)
-
-		// Setup Gin with the JWTAuthMiddleware.
-		router := gin.New()
-		router.Use(middleware.JWTAuthMiddleware(authService, userRepo))
-		router.GET("/jwt-protected", func(c *gin.Context) {
-			c.String(http.StatusOK, "jwt auth passed")
-		})
-
-		// Create a valid JWT header.
-		req, err := http.NewRequest("GET", "/jwt-protected", nil)
-		require.NoError(t, err)
-		req.Header.Set("Authorization", "Bearer "+tokenString)
-
-		w := httptest.NewRecorder()
-		router.ServeHTTP(w, req)
-		require.Equal(t, http.StatusOK, w.Code)
-		require.Equal(t, "jwt auth passed", w.Body.String())
-	})
+func (m *MockAuthService) AuthenticateBasic(email, password string) (*model.UserDTO, error) {
+	args := m.Called(email, password)
+	if res := args.Get(0); res != nil {
+		return res.(*model.UserDTO), args.Error(1)
+	}
+	return nil, args.Error(1)
 }
 
-func TestJWTAuthMiddleware_RevokedToken_Integration(t *testing.T) {
-	t.Run("JWTAuth revoked token returns unauthorized", func(t *testing.T) {
-		// Setup integration database.
-		db := integration.SetupTest(t)
-		defer integration.CleanTestData(t)
+func (m *MockAuthService) Validate(token string) (*service.Claims, error) {
+	args := m.Called(token)
+	if res := args.Get(0); res != nil {
+		return res.(*service.Claims), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
 
-		userRepo := repository.NewUserRepo(db)
-		tokenRepo := repository.NewTokenRepo(db)
-		// Create authService with required arguments.
-		authService := service.NewAuthService(userRepo, tokenRepo, "secret", time.Hour)
-		userService := service.NewUserService(userRepo)
+func (m *MockAuthService) IsTokenRevoked(tokenID string) (bool, error) {
+	args := m.Called(tokenID)
+	return args.Bool(0), args.Error(1)
+}
 
-		// Register a test user.
-		createInput := &model.CreateUserInput{
-			Email:    "user@example.com",
-			Password: "correctpassword",
-			Username: "revokeduser",
-		}
-		registeredUser, err := userService.Register(createInput)
-		require.NoError(t, err)
-		require.NotZero(t, registeredUser.ID)
+func (m *MockAuthService) FindUserById(userID uint) (*model.UserDTO, error) {
+	args := m.Called(userID)
+	if res := args.Get(0); res != nil {
+		return res.(*model.UserDTO), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
 
-		// Generate a token.
-		tokenString, err := authService.Generate(registeredUser.ID)
-		require.NoError(t, err)
-		require.NotEmpty(t, tokenString)
+func (m *MockAuthService) Generate(userID uint) (string, error) {
+	args := m.Called(userID)
+	return args.String(0), args.Error(1)
+}
 
-		// Manually parse the token to extract claims.
-		claims := &jwt.RegisteredClaims{}
-		_, err = jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
-			return []byte("secret"), nil
-		})
-		require.NoError(t, err)
-		// Assuming model.BlacklistedToken has fields JTI and ExpiredAt.
-		blToken := &model.BlacklistedToken{
-			JTI:       claims.ID,
-			ExpiresAt: claims.ExpiresAt.Time, // token's expiration
-		}
-		err = tokenRepo.Add(blToken)
-		require.NoError(t, err)
+func (m *MockAuthService) Invalidate(tokenID string) error {
+	args := m.Called(tokenID)
+	return args.Error(0)
+}
 
-		// Setup Gin with the JWTAuthMiddleware.
+func (m *MockAuthService) CleanupExpired() error {
+	args := m.Called()
+	return args.Error(0)
+}
+
+// Testing the single AuthMiddleware function that handles both Basic and JWT auth
+func TestAuthMiddleware(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	t.Run("Missing Auth Header", func(t *testing.T) {
+		mockAuth := new(MockAuthService)
+
 		router := gin.New()
-		router.Use(middleware.JWTAuthMiddleware(authService, userRepo))
-		router.GET("/revoked", func(c *gin.Context) {
-			c.String(http.StatusOK, "should not pass")
+		router.Use(middleware.AuthMiddleware(mockAuth))
+		router.GET("/test", func(c *gin.Context) {
+			c.String(http.StatusOK, "passed")
 		})
 
-		req, err := http.NewRequest("GET", "/revoked", nil)
-		require.NoError(t, err)
-		req.Header.Set("Authorization", "Bearer "+tokenString)
-
+		req, _ := http.NewRequest("GET", "/test", nil)
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
-		// Expect unauthorized since the token has been blacklisted.
 		require.Equal(t, http.StatusUnauthorized, w.Code)
+	})
+
+	t.Run("Basic Auth Flow", func(t *testing.T) {
+		tests := []struct {
+			name           string
+			headerValue    string
+			setupMock      func(m *MockAuthService)
+			expectedStatus int
+		}{
+			{
+				name:           "Invalid Base64",
+				headerValue:    "Basic invalidbase64",
+				setupMock:      func(m *MockAuthService) {},
+				expectedStatus: http.StatusBadRequest,
+			},
+			{
+				name:           "Invalid basic auth format",
+				headerValue:    "Basic " + base64.StdEncoding.EncodeToString([]byte("foo")),
+				setupMock:      func(m *MockAuthService) {},
+				expectedStatus: http.StatusBadRequest,
+			},
+			{
+				name:        "Authentication failure",
+				headerValue: "Basic " + base64.StdEncoding.EncodeToString([]byte("user@example.com:wrongpassword")),
+				setupMock: func(m *MockAuthService) {
+					m.On("AuthenticateBasic", "user@example.com", "wrongpassword").
+						Return(nil, errors.New("invalid credentials"))
+				},
+				expectedStatus: http.StatusUnauthorized,
+			},
+			{
+				name:        "Successful auth",
+				headerValue: "Basic " + base64.StdEncoding.EncodeToString([]byte("user@example.com:correctpassword")),
+				setupMock: func(m *MockAuthService) {
+					m.On("AuthenticateBasic", "user@example.com", "correctpassword").
+						Return(&model.UserDTO{ID: 42, Username: "testuser", Email: "user@example.com"}, nil)
+				},
+				expectedStatus: http.StatusOK,
+			},
+		}
+
+		for _, tc := range tests {
+			tc := tc // capture range var
+			t.Run(tc.name, func(t *testing.T) {
+				mockAuth := new(MockAuthService)
+				tc.setupMock(mockAuth)
+
+				router := gin.New()
+				router.Use(middleware.AuthMiddleware(mockAuth))
+				router.GET("/test", func(c *gin.Context) {
+					c.String(http.StatusOK, "passed")
+				})
+
+				req, err := http.NewRequest("GET", "/test", nil)
+				require.NoError(t, err)
+				req.Header.Set("Authorization", tc.headerValue)
+
+				w := httptest.NewRecorder()
+				router.ServeHTTP(w, req)
+				require.Equal(t, tc.expectedStatus, w.Code)
+				if tc.expectedStatus == http.StatusOK {
+					require.Equal(t, "passed", w.Body.String())
+				}
+
+				mockAuth.AssertExpectations(t)
+			})
+		}
+	})
+
+	t.Run("JWT Auth Flow", func(t *testing.T) {
+		tests := []struct {
+			name           string
+			headerValue    string
+			setupMock      func(m *MockAuthService)
+			expectedStatus int
+		}{
+			{
+				name:        "Invalid prefix",
+				headerValue: "Bearer foo",
+				setupMock: func(m *MockAuthService) {
+					// Even with invalid format, middleware still tries to validate
+					m.On("Validate", "foo").Return(nil, errors.New("invalid token"))
+				},
+				expectedStatus: http.StatusUnauthorized,
+			},
+			{
+				name:           "Unsupported auth type",
+				headerValue:    "Digest something",
+				setupMock:      func(m *MockAuthService) {},
+				expectedStatus: http.StatusUnauthorized,
+			},
+			{
+				name:        "Token validation fails",
+				headerValue: "Bearer invalidtoken",
+				setupMock: func(m *MockAuthService) {
+					m.On("Validate", "invalidtoken").Return(nil, errors.New("invalid token"))
+				},
+				expectedStatus: http.StatusUnauthorized,
+			},
+			{
+				name:        "Token blacklisted",
+				headerValue: "Bearer validtoken",
+				setupMock: func(m *MockAuthService) {
+					claims := &service.Claims{
+						RegisteredClaims: jwt.RegisteredClaims{
+							ID:        "abc123",
+							ExpiresAt: jwt.NewNumericDate(time.Now().Add(1 * time.Hour)),
+						},
+						UserID: 42,
+					}
+					m.On("Validate", "validtoken").Return(claims, nil)
+					m.On("IsTokenRevoked", "abc123").Return(true, nil)
+				},
+				expectedStatus: http.StatusUnauthorized,
+			},
+			{
+				name:        "User no longer exists",
+				headerValue: "Bearer validtoken",
+				setupMock: func(m *MockAuthService) {
+					claims := &service.Claims{
+						RegisteredClaims: jwt.RegisteredClaims{
+							ID:        "abc123",
+							ExpiresAt: jwt.NewNumericDate(time.Now().Add(1 * time.Hour)),
+						},
+						UserID: 42,
+					}
+					m.On("Validate", "validtoken").Return(claims, nil)
+					m.On("IsTokenRevoked", "abc123").Return(false, nil)
+					m.On("FindUserById", uint(42)).Return(nil, errors.New("user not found"))
+				},
+				expectedStatus: http.StatusUnauthorized,
+			},
+			{
+				name:        "Successful JWT auth",
+				headerValue: "Bearer validtoken",
+				setupMock: func(m *MockAuthService) {
+					claims := &service.Claims{
+						RegisteredClaims: jwt.RegisteredClaims{
+							ID:        "abc123",
+							ExpiresAt: jwt.NewNumericDate(time.Now().Add(1 * time.Hour)),
+						},
+						UserID: 42,
+					}
+					m.On("Validate", "validtoken").Return(claims, nil)
+					m.On("IsTokenRevoked", "abc123").Return(false, nil)
+					m.On("FindUserById", uint(42)).Return(&model.UserDTO{ID: 42, Username: "testuser", Email: "user@example.com"}, nil)
+				},
+				expectedStatus: http.StatusOK,
+			},
+		}
+
+		for _, tc := range tests {
+			tc := tc // capture range var
+			t.Run(tc.name, func(t *testing.T) {
+				mockAuth := new(MockAuthService)
+				tc.setupMock(mockAuth)
+
+				router := gin.New()
+				router.Use(middleware.AuthMiddleware(mockAuth))
+				router.GET("/test", func(c *gin.Context) {
+					c.String(http.StatusOK, "jwt passed")
+				})
+
+				req, err := http.NewRequest("GET", "/test", nil)
+				require.NoError(t, err)
+				req.Header.Set("Authorization", tc.headerValue)
+
+				w := httptest.NewRecorder()
+				router.ServeHTTP(w, req)
+				require.Equal(t, tc.expectedStatus, w.Code)
+				if tc.expectedStatus == http.StatusOK {
+					require.Equal(t, "jwt passed", w.Body.String())
+				}
+
+				mockAuth.AssertExpectations(t)
+			})
+		}
 	})
 }
