@@ -61,6 +61,6 @@ func (h *HealthHandler) Health(c *gin.Context) {
 
 // RegisterRoutes mounts the health endpoints on the given router group.
 func (h *HealthHandler) RegisterRoutes(rg *gin.RouterGroup) {
-	rg.GET("/status", h.Home) // Handles /api/v1
+	rg.GET("/status", h.Home)
 	rg.GET("/health", h.Health)
 }
