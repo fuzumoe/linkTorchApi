@@ -7,6 +7,7 @@ import (
 
 	"github.com/fuzumoe/urlinsight-backend/configs"
 	"github.com/fuzumoe/urlinsight-backend/internal/handler"
+	"github.com/fuzumoe/urlinsight-backend/internal/middleware"
 	"github.com/fuzumoe/urlinsight-backend/internal/repository"
 	"github.com/fuzumoe/urlinsight-backend/internal/server"
 	"github.com/fuzumoe/urlinsight-backend/internal/service"
@@ -19,27 +20,22 @@ var (
 	MigrateDB  = repository.Migrate
 )
 
-// @title           URL Insight API
-// @version         1.0
+// A helper function type so we can use functions as RouteRegistrar.
+type RouteRegistrarFunc func(rg *gin.RouterGroup)
 
-// @host      localhost:8090
-// @BasePath  /api/v1
+// RegisterRoutes implements the RouteRegistrar interface.
+func (f RouteRegistrarFunc) RegisterRoutes(rg *gin.RouterGroup) {
+	f(rg)
+}
 
-// @securityDefinitions.basic BasicAuth
-// @description Basic Authentication with username and password
-
-// @securityDefinitions.apikey JWTAuth
-// @in header
-// @name Authorization
-// @description JWT Authentication token, prefixed with "Bearer " followed by the token
 func Run() error {
-	// Load configuration
+	// Load configuration.
 	cfg, err := LoadConfig()
 	if err != nil {
 		return fmt.Errorf("config load error: %w", err)
 	}
 
-	// Connect & migrate DB
+	// Connect & migrate DB.
 	db, err := NewDB(cfg.DatabaseURL)
 	if err != nil {
 		return fmt.Errorf("db init error: %w", err)
@@ -48,33 +44,56 @@ func Run() error {
 		return fmt.Errorf("migration error: %w", err)
 	}
 
-	// Instantiate services
+	// Initialize repositories.
+	userRepo := repository.NewUserRepo(db)
+	authRepo := repository.NewTokenRepo(db)
+
+	// Instantiate services.
 	healthSvc := service.NewHealthService(db, "URLInsight Backend")
-	// TODO: userSvc := service.NewUserService(...)
-	// TODO: urlSvc  := service.NewURLService(...)
-	// TODO: authSvc, tokenSvc, linkSvc, analysisSvc...
+	userSvc := service.NewUserService(userRepo)
+	authSVC := service.NewAuthService(
+		userRepo,
+		authRepo,
+		cfg.JWTSecret,
+		cfg.JWTLifetime,
+	)
+	// Initialize DualAuthMiddleware with the auth service and user service.
+	dualAuthMiddleware := middleware.AuthMiddleware(authSVC)
 
-	// Instantiate handlers
+	// Instantiate handlers.
 	healthH := handler.NewHealthHandler(healthSvc)
-	// TODO: userH := handler.NewUserHandler(userSvc)
-	// TODO: urlH  := handler.NewURLHandler(urlSvc)
-	// TODO: authH, linkH, analysisH...
+	authH := handler.NewAuthHandler(authSVC, userSvc)
 
-	// Build router and register routes
+	// Build router and register routes.
 	router := gin.New()
+
+	// Create route registrars that wrap the handler methods.
+	publicRegs := []server.RouteRegistrar{
+		RouteRegistrarFunc(func(rg *gin.RouterGroup) {
+			// Register public endpoints for auth (login endpoints).
+			authH.RegisterPublicRoutes(rg)
+		}),
+		healthH, // assuming healthH implements RouteRegistrar.
+	}
+
+	protectedRegs := []server.RouteRegistrar{
+		RouteRegistrarFunc(func(rg *gin.RouterGroup) {
+			// Register protected endpoints for auth (register & logout endpoints).
+			authH.RegisterProtectedRoutes(rg)
+		}),
+		// add additional protected route registrars as needed.
+	}
+
+	// And then pass it in:
 	server.RegisterRoutes(
 		router,
 		cfg.JWTSecret,
-		[]server.RouteRegistrar{
-			healthH, // public health endpoints
-			// userH, urlH, authH... for public GETs
-		},
-		[]server.RouteRegistrar{
-			// userH, urlH, authH... for protected writes
-		},
+		dualAuthMiddleware, // now using the dual authentication middleware
+		publicRegs,
+		protectedRegs,
 	)
 
-	//  Run the HTTP server (blocks until error or shutdown)
+	// Run the HTTP server.
 	addr := fmt.Sprintf("%s:%s", cfg.ServerHost, cfg.ServerPort)
 	return router.Run(addr)
 }
