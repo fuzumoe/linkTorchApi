@@ -36,6 +36,7 @@ func TestRouterIntegration(t *testing.T) {
 	server.RegisterRoutes(
 		r,
 		"test-secret",
+		func(c *gin.Context) { c.Next() },      // Dummy auth middleware for testing
 		[]server.RouteRegistrar{healthHandler}, // Use real health handler
 		[]server.RouteRegistrar{},              // No protected routes for this test
 	)

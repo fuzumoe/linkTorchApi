@@ -19,7 +19,7 @@ type MockRegistrar struct {
 	RouteHandler         gin.HandlerFunc
 }
 
-// RegisterRoutes implements the RouteRegistrar interface
+// RegisterRoutes implements the RouteRegistrar interface.
 func (m *MockRegistrar) RegisterRoutes(rg *gin.RouterGroup) {
 	m.RegisterRoutesCalled = true
 	rg.GET(m.RoutePattern, m.RouteHandler)
@@ -28,9 +28,9 @@ func (m *MockRegistrar) RegisterRoutes(rg *gin.RouterGroup) {
 func TestRegisterRoutes(t *testing.T) {
 	// Setup
 	gin.SetMode(gin.TestMode)
-	r := gin.New() // Use New() instead of Default() to avoid middleware
+	r := gin.New() // using New() avoids default middleware
 
-	// Create mock registrars
+	// Create a mock public registrar.
 	mockPublicRegistrar := &MockRegistrar{
 		RoutePattern: "/test-public",
 		RouteHandler: func(c *gin.Context) {
@@ -38,77 +38,71 @@ func TestRegisterRoutes(t *testing.T) {
 		},
 	}
 
-	// Register routes
+	// Register routes using the updated router.RegisterRoutes which provides:
+	// - Public API endpoints under "/api/v1"
+	// - Swagger endpoint at "/swagger/*any"
+	// (No root "/" or "/health" endpoints are registered.)
 	server.RegisterRoutes(
 		r,
 		"test-secret",
+		func(c *gin.Context) { c.Next() }, // Dummy auth middleware.
 		[]server.RouteRegistrar{mockPublicRegistrar},
-		[]server.RouteRegistrar{}, // No protected routes for now
+		[]server.RouteRegistrar{}, // No protected routes for now.
 	)
 
-	// Create a test HTTP server
+	// Create a test HTTP server.
 	ts := httptest.NewServer(r)
 	defer ts.Close()
 
-	// Test cases
-	t.Run("Root Endpoint", func(t *testing.T) {
-		// Make a request to the root endpoint
-		resp, err := http.Get(ts.URL + "/")
+	t.Run("Swagger Endpoint", func(t *testing.T) {
+		// Query the swagger endpoint.
+		resp, err := http.Get(ts.URL + "/swagger/index.html")
 		assert.NoError(t, err)
 		defer resp.Body.Close()
-
-		// Check status code
+		// Expect Swagger docs to load (HTTP 200).
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
-
-		// Check response body
-		var result map[string]interface{}
-		err = json.NewDecoder(resp.Body).Decode(&result)
-		assert.NoError(t, err)
-		assert.Equal(t, "Welcome to URL Insight Backend!", result["message"])
-	})
-
-	t.Run("Health Endpoint", func(t *testing.T) {
-		// Make a request to the health endpoint
-		resp, err := http.Get(ts.URL + "/health")
-		assert.NoError(t, err)
-		defer resp.Body.Close()
-
-		// Check status code
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
-
-		// Check response body
-		var result map[string]interface{}
-		err = json.NewDecoder(resp.Body).Decode(&result)
-		assert.NoError(t, err)
-		assert.Equal(t, "ok", result["status"])
 	})
 
 	t.Run("Public Route", func(t *testing.T) {
-		// Make a request to the public route
+		// Request the public route under /api/v1.
 		resp, err := http.Get(ts.URL + "/api/v1/test-public")
 		assert.NoError(t, err)
 		defer resp.Body.Close()
 
-		// Check status code
+		// Check status code.
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-		// Check response body
+		// Decode and verify the response.
 		var result map[string]interface{}
 		err = json.NewDecoder(resp.Body).Decode(&result)
 		assert.NoError(t, err)
 		assert.Equal(t, "public-route", result["result"])
 
-		// Verify the registrar was called
+		// Verify the registrar was called.
 		assert.True(t, mockPublicRegistrar.RegisterRoutesCalled)
 	})
 
+	t.Run("Root Endpoint", func(t *testing.T) {
+		// Since no root endpoint is registered, expect 404.
+		resp, err := http.Get(ts.URL + "/")
+		assert.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+	})
+
+	t.Run("Health Endpoint", func(t *testing.T) {
+		// Since no health endpoint is registered, expect 404.
+		resp, err := http.Get(ts.URL + "/health")
+		assert.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+	})
+
 	t.Run("Route Not Found", func(t *testing.T) {
-		// Make a request to a non-existent route
+		// Request a non-existent route.
 		resp, err := http.Get(ts.URL + "/non-existent")
 		assert.NoError(t, err)
 		defer resp.Body.Close()
-
-		// Check status code - should be 404 Not Found
 		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 	})
 }
