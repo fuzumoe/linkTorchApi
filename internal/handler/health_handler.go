@@ -11,12 +11,10 @@ import (
 )
 
 // HealthHandler provides health and status endpoints.
-// HealthHandler handles HTTP requests related to application health.
 type HealthHandler struct {
 	healthService service.HealthService
 }
 
-// NewHealthHandler creates a new HealthHandler.
 // NewHealthHandler creates a new HealthHandler.
 func NewHealthHandler(hs service.HealthService) *HealthHandler {
 	return &HealthHandler{
@@ -24,7 +22,13 @@ func NewHealthHandler(hs service.HealthService) *HealthHandler {
 	}
 }
 
-// Home returns a simple “running” status for the root endpoint.
+// Home godoc
+// @Summary      Root endpoint
+// @Description  Returns a welcome message and service status
+// @Tags         health
+// @Produce      json
+// @Success      200  {object}  map[string]interface{} "Returns message, service name, and status"
+// @Router       / [get]
 func (h *HealthHandler) Home(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Hello World!",
@@ -33,7 +37,14 @@ func (h *HealthHandler) Home(c *gin.Context) {
 	})
 }
 
-// Health returns application and database health.
+// Health godoc
+// @Summary      Check service health
+// @Description  Get the status of server and database connection
+// @Tags         health
+// @Produce      json
+// @Success      200  {object}  map[string]interface{} "Healthy service with database connection"
+// @Failure      503  {object}  map[string]interface{} "Service available but database connection issues"
+// @Router       /health [get]
 func (h *HealthHandler) Health(c *gin.Context) {
 	stat := h.healthService.Check()
 	code := http.StatusOK

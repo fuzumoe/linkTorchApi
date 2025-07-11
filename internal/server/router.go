@@ -1,9 +1,12 @@
 package server
 
 import (
-	"net/http"
-
 	"github.com/gin-gonic/gin"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
+
+	// Import the docs when they're generated
+	_ "github.com/fuzumoe/urlinsight-backend/docs"
 )
 
 // RouteRegistrar defines anything that can wire its routes into a Gin group.
@@ -12,7 +15,7 @@ type RouteRegistrar interface {
 	RegisterRoutes(rg *gin.RouterGroup)
 }
 
-// RegisterRoutes wires up health, public, and protected routes.
+// RegisterRoutes mounts the public and protected routes on the given Gin engine.
 func RegisterRoutes(
 	r *gin.Engine,
 	jwtSecret string,
@@ -22,18 +25,12 @@ func RegisterRoutes(
 	// Global middleware
 	r.Use(gin.Logger(), gin.Recovery())
 
-	r.GET("/", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"message": "Welcome to URL Insight Backend!"})
-	})
-	// Health check
-	r.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "ok"})
-	})
-
 	// Public API v1
 	public := r.Group("/api/v1")
 	for _, reg := range publicRegs {
 		reg.RegisterRoutes(public)
 	}
 
+	// Add Swagger endpoint
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 }

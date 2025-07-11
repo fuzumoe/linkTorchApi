@@ -19,7 +19,19 @@ var (
 	MigrateDB  = repository.Migrate
 )
 
-// Run initializes the application, connects to the database, and starts the HTTP server.
+// @title           URL Insight API
+// @version         1.0
+
+// @host      localhost:8090
+// @BasePath  /api/v1
+
+// @securityDefinitions.basic BasicAuth
+// @description Basic Authentication with username and password
+
+// @securityDefinitions.apikey JWTAuth
+// @in header
+// @name Authorization
+// @description JWT Authentication token, prefixed with "Bearer " followed by the token
 func Run() error {
 	// Load configuration
 	cfg, err := LoadConfig()
