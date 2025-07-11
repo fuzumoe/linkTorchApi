@@ -28,7 +28,7 @@ func NewHealthHandler(hs service.HealthService) *HealthHandler {
 // @Tags         health
 // @Produce      json
 // @Success      200  {object}  map[string]interface{} "Returns message, service name, and status"
-// @Router       / [get]
+// @Router       /status [get]
 func (h *HealthHandler) Home(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Hello World!",
@@ -61,6 +61,6 @@ func (h *HealthHandler) Health(c *gin.Context) {
 
 // RegisterRoutes mounts the health endpoints on the given router group.
 func (h *HealthHandler) RegisterRoutes(rg *gin.RouterGroup) {
-	rg.GET("/", h.Home)
+	rg.GET("/status", h.Home) // Handles /api/v1
 	rg.GET("/health", h.Health)
 }
