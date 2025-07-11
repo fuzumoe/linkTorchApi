@@ -42,7 +42,7 @@ test-integration: db-up
         echo "Waiting for MySQL on port 3309..."; \
         sleep 1; \
 	done
-	$(GOTEST) -v -timeout $(TEST_TIMEOUT) ./tests/integration/...
+	$(GOTEST) -p=2 -v -timeout $(TEST_TIMEOUT) ./tests/integration/...
 
 # Run tests with coverage
 test-coverage: db-up
