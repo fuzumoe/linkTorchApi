@@ -41,10 +41,13 @@ type RegisterRequest struct {
 // LoginBasic godoc
 // @Summary      Login via Basic Auth header and generate JWT token
 // @Description  Authenticates a user using Basic Authorization header and returns a JWT token
+// @Description  Requires "Authorization: Basic base64(email:password)" header
 // @Tags         auth
 // @Produce      json
+// @Param        Authorization header string true "Basic base64(email:password)"
 // @Success      200 {object} map[string]interface{} "JWT token generated"
 // @Failure      400 {object} map[string]interface{} "Invalid request or login error"
+// @Failure      401 {object} map[string]interface{} "Authentication failed"
 // @Router       /login/basic [post]
 func (h *AuthHandler) LoginBasic(c *gin.Context) {
 	const prefix = "Basic "
@@ -85,12 +88,15 @@ func (h *AuthHandler) LoginBasic(c *gin.Context) {
 // LoginJWT godoc
 // @Summary      Login via JSON payload and generate JWT token
 // @Description  Authenticates a user using email and password provided in JSON and returns a JWT token
+// @Description  Example request: {"email": "user@example.com", "password": "userpassword"}
+// @Description  Example response: {"token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."}
 // @Tags         auth
 // @Accept       json
 // @Produce      json
 // @Param        loginRequest  body      LoginRequest  true  "Login request payload"
 // @Success      200           {object}  map[string]interface{} "JWT token generated"
 // @Failure      400           {object}  map[string]interface{} "Invalid request or login error"
+// @Failure      401           {object}  map[string]interface{} "Authentication failed"
 // @Router       /login/jwt [post]
 func (h *AuthHandler) LoginJWT(c *gin.Context) {
 	var req LoginRequest
@@ -124,6 +130,7 @@ func (h *AuthHandler) LoginJWT(c *gin.Context) {
 // @Success      201           {object}  map[string]interface{} "User registered and JWT token generated"
 // @Failure      400           {object}  map[string]interface{} "Invalid request or registration error"
 // @Security     JWTAuth
+// @Security     BasicAuth
 // @Router       /register [post]
 func (h *AuthHandler) Register(c *gin.Context) {
 	var req RegisterRequest
@@ -164,6 +171,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 // @Success      200 {object} map[string]interface{} "Logout message"
 // @Failure      400 {object} map[string]interface{} "Invalid token or request"
 // @Security     JWTAuth
+// @Security     BasicAuth
 // @Router       /logout [post]
 func (h *AuthHandler) Logout(c *gin.Context) {
 	authHeader := c.GetHeader("Authorization")
@@ -172,26 +180,56 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		return
 	}
 
-	const prefix = "Bearer "
-	if len(authHeader) <= len(prefix) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid authorization header"})
+	// Handle Bearer token (JWT)
+	if strings.HasPrefix(authHeader, "Bearer ") {
+		tokenString := authHeader[len("Bearer "):]
+		claims, err := h.authService.Validate(tokenString)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+			return
+		}
+
+		err = h.authService.Invalidate(claims.ID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to logout"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"message": "logged out"})
 		return
 	}
-	tokenString := authHeader[len(prefix):]
 
-	claims, err := h.authService.Validate(tokenString)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+	// Handle Basic Authentication
+	if strings.HasPrefix(authHeader, "Basic ") {
+		decoded, err := base64.StdEncoding.DecodeString(authHeader[len("Basic "):])
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid base64 encoding in authorization header"})
+			return
+		}
+
+		parts := strings.SplitN(string(decoded), ":", 2)
+		if len(parts) != 2 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid basic auth format"})
+			return
+		}
+		email, password := parts[0], parts[1]
+
+		// Authenticate the user with Basic Auth
+		_, err = h.userService.Authenticate(email, password)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "authentication failed"})
+			return
+		}
+
+		// For Basic Auth, we don't have a specific token to invalidate
+		// You could invalidate all tokens for this user, or simply return success
+		// This implementation returns success without invalidating tokens
+		c.JSON(http.StatusOK, gin.H{"message": "logged out"})
 		return
 	}
 
-	err = h.authService.Invalidate(claims.ID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to logout"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "logged out"})
+	// If we get here, the authorization type is not supported
+	c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported authorization type"})
 }
 
 // RegisterPublicRoutes registers the public auth endpoints.

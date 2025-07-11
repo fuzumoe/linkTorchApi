@@ -49,6 +49,16 @@ func Run() error {
 	userRepo := repository.NewUserRepo(db)
 	authRepo := repository.NewTokenRepo(db)
 
+	// Instantiate services.
+	healthSvc := service.NewHealthService(db, "URLInsight Backend")
+	userSvc := service.NewUserService(userRepo)
+	authSVC := service.NewAuthService(
+		userRepo,
+		authRepo,
+		cfg.JWTSecret,
+		cfg.JWTLifetime,
+	)
+
 	if cfg.ServerMode == "debug" && cfg.DevUserEmail != "" && cfg.DevUserPassword != "" {
 		// Create a dev user for testing/development purposes
 		createUserInput := &model.CreateUserInput{
@@ -61,30 +71,43 @@ func Run() error {
 		userSvc := service.NewUserService(userRepo)
 
 		// Try to create the user, ignore if already exists
-		user, err := userSvc.Register(createUserInput)
-		if err != nil {
+		user, userErr := userSvc.Register(createUserInput)
+		if userErr != nil {
 			// Check if error is because user already exists
 			fmt.Printf("Notice: Dev user already exists or could not be created: %v\n", err)
+
+			// Try to authenticate the user to get their ID
+			existingUser, authErr := userSvc.Authenticate(cfg.DevUserEmail, cfg.DevUserPassword)
+			if authErr == nil && existingUser != nil {
+				// If authentication succeeds, generate a token
+				token, tokenErr := authSVC.Generate(existingUser.ID)
+				if tokenErr == nil {
+					fmt.Printf("🔑 Development credentials (with token):\n")
+					fmt.Printf("   Token: %s\n", token)
+				} else {
+					fmt.Printf("🔑 Development credentials (token generation failed: %v):\n", tokenErr)
+				}
+			} else {
+				fmt.Printf("🔑 Development credentials (couldn't authenticate: %v):\n", authErr)
+			}
 			fmt.Printf("🔑 Development credentials:\n")
 			fmt.Printf("   Email: %s\n", cfg.DevUserEmail)
 			fmt.Printf("   Username: %s\n", cfg.DevUserName)
 			fmt.Printf("   Password: %s\n", cfg.DevUserPassword)
 		} else {
-			fmt.Printf("🔑 Created development user:\n")
+			// User was created successfully, now generate token
+			token, tokenErr := authSVC.Generate(user.ID)
+			if tokenErr != nil {
+				fmt.Printf("🔑 Created development user (token generation failed: %v):\n", tokenErr)
+			} else {
+				fmt.Printf("🔑 Created development user with token:\n")
+				fmt.Printf("   Token: %s\n", token)
+			}
 			fmt.Printf("   Email: %s\n", user.Email)
 			fmt.Printf("   Username: %s\n", user.Username)
 			fmt.Printf("   Password: %s\n", cfg.DevUserPassword)
 		}
 	}
-	// Instantiate services.
-	healthSvc := service.NewHealthService(db, "URLInsight Backend")
-	userSvc := service.NewUserService(userRepo)
-	authSVC := service.NewAuthService(
-		userRepo,
-		authRepo,
-		cfg.JWTSecret,
-		cfg.JWTLifetime,
-	)
 	// Initialize DualAuthMiddleware with the auth service and user service.
 	dualAuthMiddleware := middleware.AuthMiddleware(authSVC)
 

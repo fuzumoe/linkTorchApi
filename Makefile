@@ -70,6 +70,14 @@ test-integration-coverage: db-up
 	$(GOTOOL) cover -html=$(TEST_COVERAGE_FILE) -o $(TEST_COVERAGE_HTML)
 	@echo "Integration test coverage report generated: $(TEST_COVERAGE_HTML)"
 
+dev-basic-auth-header:
+	@EMAIL=$$(grep '^DEV_USER_EMAIL=' .env | cut -d'=' -f2); \
+    PASSWORD=$$(grep '^DEV_USER_PASSWORD=' .env | cut -d'=' -f2); \
+    TOKEN=$$(echo -n "$$EMAIL:$$PASSWORD" | base64); \
+    echo "Authorization:"; \
+    echo "Basic $$TOKEN"; \
+   
+
 # Run linting
 lint:
 	golangci-lint run
