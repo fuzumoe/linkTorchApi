@@ -21,6 +21,9 @@ type Config struct {
 	DatabasePassword    string
 	DatabaseName        string
 	DatabaseURL         string
+	DevUserEmail        string
+	DevUserName         string
+	DevUserPassword     string
 	LogLevel            string
 	JWTSecret           string
 	JWTLifetime         time.Duration
@@ -49,6 +52,9 @@ func Load() (*Config, error) {
 	cfg.DatabasePassword = getEnv("DB_PASSWORD", "")
 	cfg.DatabaseName = getEnv("DB_NAME", "")
 	cfg.MySQLRootPassword = getEnv("MYSQL_ROOT_PASSWORD", "")
+	cfg.DevUserName = getEnv("DEV_USER_NAME", "DevUser")
+	cfg.DevUserEmail = getEnv("DEV_USER_EMAIL", "admin@admin.com")
+	cfg.DevUserPassword = getEnv("DEV_USER_PASSWORD", "admin123")
 	if cfg.DatabaseUser == "" || cfg.DatabasePassword == "" || cfg.DatabaseName == "" {
 		return nil, fmt.Errorf("missing required database env vars")
 	}

@@ -8,6 +8,7 @@ import (
 	"github.com/fuzumoe/urlinsight-backend/configs"
 	"github.com/fuzumoe/urlinsight-backend/internal/handler"
 	"github.com/fuzumoe/urlinsight-backend/internal/middleware"
+	"github.com/fuzumoe/urlinsight-backend/internal/model"
 	"github.com/fuzumoe/urlinsight-backend/internal/repository"
 	"github.com/fuzumoe/urlinsight-backend/internal/server"
 	"github.com/fuzumoe/urlinsight-backend/internal/service"
@@ -48,6 +49,33 @@ func Run() error {
 	userRepo := repository.NewUserRepo(db)
 	authRepo := repository.NewTokenRepo(db)
 
+	if cfg.ServerMode == "debug" && cfg.DevUserEmail != "" && cfg.DevUserPassword != "" {
+		// Create a dev user for testing/development purposes
+		createUserInput := &model.CreateUserInput{
+			Email:    cfg.DevUserEmail,
+			Password: cfg.DevUserPassword,
+			Username: cfg.DevUserName,
+		}
+
+		// Initialize user service early for dev user creation
+		userSvc := service.NewUserService(userRepo)
+
+		// Try to create the user, ignore if already exists
+		user, err := userSvc.Register(createUserInput)
+		if err != nil {
+			// Check if error is because user already exists
+			fmt.Printf("Notice: Dev user already exists or could not be created: %v\n", err)
+			fmt.Printf("🔑 Development credentials:\n")
+			fmt.Printf("   Email: %s\n", cfg.DevUserEmail)
+			fmt.Printf("   Username: %s\n", cfg.DevUserName)
+			fmt.Printf("   Password: %s\n", cfg.DevUserPassword)
+		} else {
+			fmt.Printf("🔑 Created development user:\n")
+			fmt.Printf("   Email: %s\n", user.Email)
+			fmt.Printf("   Username: %s\n", user.Username)
+			fmt.Printf("   Password: %s\n", cfg.DevUserPassword)
+		}
+	}
 	// Instantiate services.
 	healthSvc := service.NewHealthService(db, "URLInsight Backend")
 	userSvc := service.NewUserService(userRepo)
@@ -70,10 +98,9 @@ func Run() error {
 	// Create route registrars that wrap the handler methods.
 	publicRegs := []server.RouteRegistrar{
 		RouteRegistrarFunc(func(rg *gin.RouterGroup) {
-			// Register public endpoints for auth (login endpoints).
 			authH.RegisterPublicRoutes(rg)
 		}),
-		healthH, // assuming healthH implements RouteRegistrar.
+		healthH,
 	}
 
 	protectedRegs := []server.RouteRegistrar{
@@ -81,7 +108,6 @@ func Run() error {
 			// Register protected endpoints for auth (register & logout endpoints).
 			authH.RegisterProtectedRoutes(rg)
 		}),
-		// add additional protected route registrars as needed.
 	}
 
 	// And then pass it in:
