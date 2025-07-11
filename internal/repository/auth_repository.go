@@ -11,7 +11,7 @@ import (
 
 // TokenRepository defines operations for blacklisting and checking JWT IDs.
 type TokenRepository interface {
-	// Add stores or updates a revoked token’s JTI and expiration.
+	// Add stores or updates a revoked token's JTI and expiration.
 	Add(token *model.BlacklistedToken) error
 
 	// IsBlacklisted returns true if the given JTI exists and is not yet expired.
@@ -27,10 +27,18 @@ type tokenRepo struct {
 
 // NewTokenRepo creates a new GORM-backed TokenRepository.
 func NewTokenRepo(db *gorm.DB) TokenRepository {
+	// Ensure the BlacklistedToken table exists
+	db.AutoMigrate(&model.BlacklistedToken{})
+
 	return &tokenRepo{db: db}
 }
 
 func (r *tokenRepo) Add(token *model.BlacklistedToken) error {
+	// Set CreatedAt if not set
+	if token.CreatedAt.IsZero() {
+		token.CreatedAt = time.Now()
+	}
+
 	return r.db.
 		Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "jti"}},
