@@ -13,7 +13,7 @@ import (
 	"github.com/fuzumoe/urlinsight-backend/internal/service"
 )
 
-// hookable for tests
+// hookable for tests.
 var (
 	LoadConfig = configs.Load
 	NewDB      = repository.NewDB
@@ -88,7 +88,7 @@ func Run() error {
 	server.RegisterRoutes(
 		router,
 		cfg.JWTSecret,
-		dualAuthMiddleware, // now using the dual authentication middleware
+		dualAuthMiddleware,
 		publicRegs,
 		protectedRegs,
 	)

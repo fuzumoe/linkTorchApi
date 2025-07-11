@@ -2,17 +2,17 @@ package service
 
 import (
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/fuzumoe/urlinsight-backend/internal/model"
 	"github.com/fuzumoe/urlinsight-backend/internal/repository"
 )
 
-// Error constants for token validation and management
+// Error constants for token validation and management.
 var (
 	ErrTokenInvalid       = errors.New("invalid token")
 	ErrTokenExpired       = errors.New("token is expired")
@@ -92,7 +92,7 @@ func (a *authService) Validate(tokenString string) (*Claims, error) {
 		return nil, ErrTokenInvalid
 	}
 
-	// Check if the token has been revoked
+	// Check if the token has been revoked.
 	revoked, err := a.IsTokenRevoked(claims.ID)
 	if err != nil {
 		return nil, err
@@ -106,12 +106,12 @@ func (a *authService) Validate(tokenString string) (*Claims, error) {
 
 // IsTokenRevoked checks if a token has been revoked by checking if it's in the blacklist.
 func (a *authService) IsTokenRevoked(tokenID string) (bool, error) {
-	// If token ID is empty, it can't be in the blacklist
+	// If token ID is empty, it can't be in the blacklist.
 	if tokenID == "" {
 		return false, nil
 	}
 
-	// Check if the token is in the blacklist
+	// Check if the token is in the blacklist.
 	isBlacklisted, err := a.tokenRepo.IsBlacklisted(tokenID)
 	if err != nil {
 		return false, ErrBlacklistCheckFail
@@ -143,7 +143,7 @@ func (a *authService) Generate(userID uint) (string, error) {
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expirationTime),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			ID:        generateTokenID(), // Generate a unique token ID
+			ID:        generateTokenID(), // Generate a unique token ID.
 		},
 	}
 
@@ -158,7 +158,7 @@ func (a *authService) Generate(userID uint) (string, error) {
 
 // Invalidate adds a token to the blacklist to invalidate it.
 func (a *authService) Invalidate(tokenID string) error {
-	// If token ID is empty, we can't blacklist it
+	// If token ID is empty, we can't blacklist it.
 	if tokenID == "" {
 		return ErrTokenInvalid
 	}
@@ -166,10 +166,10 @@ func (a *authService) Invalidate(tokenID string) error {
 	// Create a new blacklisted token
 	blacklistedToken := &model.BlacklistedToken{
 		JTI:       tokenID,
-		ExpiresAt: time.Now().Add(a.jwtLifetime), // Store when the token would expire
+		ExpiresAt: time.Now().Add(a.jwtLifetime),
 	}
 
-	// Add the token to the blacklist
+	// Add the token to the blacklist.
 	err := a.tokenRepo.Add(blacklistedToken)
 	if err != nil {
 		return ErrTokenBlacklistFail
@@ -183,8 +183,8 @@ func (a *authService) CleanupExpired() error {
 	return a.tokenRepo.RemoveExpired()
 }
 
-// Helper function to generate a unique token ID
+// Helper function to generate a unique token ID.
 func generateTokenID() string {
-	// In a real implementation, you might use a UUID or another unique identifier
-	return fmt.Sprintf("%d", time.Now().UnixNano())
+	// return fmt.Sprintf("%d", time.Now().UnixNano())
+	return uuid.New().String()
 }

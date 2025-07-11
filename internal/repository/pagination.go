@@ -1,10 +1,9 @@
-// internal/repository/pagination.go
 package repository
 
 // Pagination holds standard offset/limit paging parameters.
 type Pagination struct {
-	Page     int // 1-based page number
-	PageSize int // number of items per page
+	Page     int // 1-based page number.
+	PageSize int // number of items per page.
 }
 
 // Offset returns the number of records to skip (0-based).
@@ -18,7 +17,7 @@ func (p Pagination) Offset() int {
 // Limit returns the maximum number of records to return.
 func (p Pagination) Limit() int {
 	if p.PageSize <= 0 {
-		return 10 // a sensible default
+		return 10 // Default page size.
 	}
 	return p.PageSize
 }

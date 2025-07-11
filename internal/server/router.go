@@ -15,8 +15,6 @@ type RouteRegistrar interface {
 }
 
 // RegisterRoutes mounts the public and protected routes on the given Gin engine.
-// jwtSecret is provided for configuration (if needed) and authMiddleware is the external
-// middleware used to protect the endpoints in the protected group.
 func RegisterRoutes(
 	r *gin.Engine,
 	jwtSecret string,
@@ -34,7 +32,6 @@ func RegisterRoutes(
 	}
 
 	// Protected API v1 group.
-	// In this example, authMiddleware is assumed to be provided externally.
 	protected := r.Group("/api/v1")
 	protected.Use(authMiddleware)
 	for _, reg := range protectedRegs {

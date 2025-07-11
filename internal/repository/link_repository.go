@@ -43,7 +43,6 @@ func (r *linkRepo) Update(link *model.Link) error {
 }
 
 func (r *linkRepo) Delete(link *model.Link) error {
-	// Using GORM's Delete method with soft delete
 	result := r.db.Delete(link)
 	if result.Error != nil {
 		return result.Error

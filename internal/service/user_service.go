@@ -28,7 +28,7 @@ func NewUserService(repo repository.UserRepository) UserService {
 }
 
 func (s *userService) Register(input *model.CreateUserInput) (*model.UserDTO, error) {
-	// Check for existing email
+	// Check for existing email.
 	if existing, _ := s.repo.FindByEmail(input.Email); existing != nil {
 		return nil, errors.New("email already in use")
 	}

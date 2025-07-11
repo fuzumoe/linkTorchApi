@@ -19,9 +19,9 @@ func AuthMiddleware(authService service.AuthService) gin.HandlerFunc {
 			return
 		}
 		const basicPrefix = "Basic "
-		if strings.HasPrefix(auth, basicPrefix) {
+		if after, ok := strings.CutPrefix(auth, basicPrefix); ok {
 			// Process Basic Auth.
-			payload, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(auth, basicPrefix))
+			payload, err := base64.StdEncoding.DecodeString(after)
 			if err != nil {
 				c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid base64 credentials"})
 				return

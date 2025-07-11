@@ -36,7 +36,7 @@ func (r *TokenRepo) Add(token *model.BlacklistedToken) error {
 
 	// Use raw SQL for the upsert operation
 	return r.db.Transaction(func(tx *gorm.DB) error {
-		// Using raw SQL with ON DUPLICATE KEY UPDATE to handle upsert
+		// Using raw SQL with ON DUPLICATE KEY UPDATE to handle upsert.
 		result := tx.Exec(
 			"INSERT INTO `blacklisted_tokens` (`jti`, `expires_at`, `created_at`, `deleted_at`) VALUES (?, ?, ?, NULL) "+
 				"ON DUPLICATE KEY UPDATE `expires_at` = VALUES(`expires_at`)",
@@ -46,7 +46,7 @@ func (r *TokenRepo) Add(token *model.BlacklistedToken) error {
 	})
 }
 
-// IsBlacklisted checks if a token ID is in the blacklist
+// IsBlacklisted checks if a token ID is in the blacklist.
 func (r *TokenRepo) IsBlacklisted(jti string) (bool, error) {
 	var count int64
 	err := r.db.Model(&model.BlacklistedToken{}).
@@ -56,10 +56,10 @@ func (r *TokenRepo) IsBlacklisted(jti string) (bool, error) {
 	return count > 0, err
 }
 
-// RemoveExpired removes expired tokens from the blacklist
+// RemoveExpired removes expired tokens from the blacklist.
 func (r *TokenRepo) RemoveExpired() error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
-		// Soft delete tokens that have expired
+		// Soft delete tokens that have expired.
 		result := tx.Where("expires_at < ?", time.Now()).
 			Delete(&model.BlacklistedToken{})
 		return result.Error
