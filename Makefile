@@ -137,9 +137,10 @@ run:
 	$(GOBUILD) -o $(BINARY_NAME) -v ./main.go
 	./$(BINARY_NAME)
 
+
 # Run in development mode
 dev:
-	$(GOCMD) run ./cmd/main.go
+	air
 
 docker-compose-up:
 	docker compose up -d
