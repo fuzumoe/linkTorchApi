@@ -3,9 +3,7 @@ package crawler
 import (
 	"context"
 	"log"
-	"os/signal"
 	"sync"
-	"syscall"
 
 	"github.com/fuzumoe/urlinsight-backend/internal/analyzer"
 	"github.com/fuzumoe/urlinsight-backend/internal/repository"
@@ -13,7 +11,8 @@ import (
 
 // Pool is injected into url_service so handlers can queue jobs.
 type Pool interface {
-	Start()
+	// Start runs background workers until the passed context is cancelled.
+	Start(ctx context.Context)
 	Enqueue(id uint)
 	Shutdown()
 }
@@ -27,7 +26,8 @@ func New(repo repository.URLRepository, a analyzer.Analyzer, workers, buf int) P
 		buf = 128
 	}
 
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	// Start with a background context.
+	ctx, cancel := context.WithCancel(context.Background())
 
 	return &pool{
 		repo:    repo,
@@ -41,9 +41,8 @@ func New(repo repository.URLRepository, a analyzer.Analyzer, workers, buf int) P
 
 // pool manages a set of workers that process URL analysis tasks.
 type pool struct {
-	repo repository.URLRepository
-	anal analyzer.Analyzer
-
+	repo    repository.URLRepository
+	anal    analyzer.Analyzer
 	workers int
 	tasks   chan uint
 
@@ -52,8 +51,17 @@ type pool struct {
 	wg     sync.WaitGroup
 }
 
-// Start spins up background workers.
-func (p *pool) Start() {
+// Start spins up background workers and blocks until ctx is cancelled.
+// When ctx.Done() is signaled, it calls Shutdown().
+func (p *pool) Start(ctx context.Context) {
+	// Create a child context that can be cancelled either by the external ctx or p.cancel.
+	childCtx, cancel := context.WithCancel(ctx)
+	// Overwrite our internal context with the child context.
+	p.ctx = childCtx
+	// Ensure that when Start() exits, we cancel the child context.
+	defer cancel()
+
+	// Spin up workers.
 	for i := 0; i < p.workers; i++ {
 		w := newWorker(i+1, p.ctx, p.repo, p.anal)
 		p.wg.Add(1)
@@ -62,6 +70,10 @@ func (p *pool) Start() {
 			w.run(p.tasks)
 		}()
 	}
+
+	// Block until the external context is cancelled.
+	<-p.ctx.Done()
+	p.Shutdown()
 }
 
 // Enqueue drops a URL-row ID onto the buffered channel.
@@ -74,7 +86,7 @@ func (p *pool) Enqueue(id uint) {
 	}
 }
 
-// Shutdown flushes the queue then stops workers.
+// Shutdown cancels the context, waits for all workers to finish, and then closes the tasks channel.
 func (p *pool) Shutdown() {
 	p.cancel()
 	p.wg.Wait()
