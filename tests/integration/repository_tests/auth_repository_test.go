@@ -10,7 +10,7 @@ import (
 
 	"github.com/fuzumoe/urlinsight-backend/internal/model"
 	"github.com/fuzumoe/urlinsight-backend/internal/repository"
-	"github.com/fuzumoe/urlinsight-backend/tests/integration"
+	"github.com/fuzumoe/urlinsight-backend/tests/utils"
 )
 
 // Helper function to count tokens in the database.
@@ -23,7 +23,7 @@ func countTokens(t *testing.T, db *gorm.DB) int64 {
 
 func TestTokenRepo_Integration(t *testing.T) {
 	// Get a clean database state.
-	db := integration.SetupTest(t)
+	db := utils.SetupTest(t)
 
 	// Create the token repository.
 	tokenRepo := repository.NewTokenRepo(db)
@@ -125,5 +125,5 @@ func TestTokenRepo_Integration(t *testing.T) {
 		assert.True(t, isBlacklisted, "Original token should still be blacklisted after removal")
 	})
 
-	integration.CleanTestData(t)
+	utils.CleanTestData(t)
 }
