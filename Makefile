@@ -28,8 +28,28 @@ clean:
 	$(GOCLEAN)
 	rm -f $(BINARY_NAME) $(BINARY_UNIX) $(TEST_COVERAGE_FILE) $(TEST_COVERAGE_HTML)
 
-# Run all tests (unit + integration)
-test: test-unit test-integration
+# Run all tests (unit + integration + e2e)
+test: test-unit test-integration test-e2e
+
+# Run e2e tests only
+test-e2e: db-up
+	@echo "Waiting for database to be ready..."
+	@while ! bash -c "echo > /dev/tcp/localhost/3309" 2>/dev/null; do \
+        echo "Waiting for MySQL on port 3309..."; \
+        sleep 1; \
+	done
+	$(GOTEST) -p=1 -v -timeout $(TEST_TIMEOUT) ./tests/e2e/...
+
+# Run e2e tests with coverage
+test-e2e-coverage: db-up
+	@echo "Waiting for database to be ready..."
+	@while ! bash -c "echo > /dev/tcp/localhost/3309" 2>/dev/null; do \
+        echo "Waiting for MySQL on port 3309..."; \
+        sleep 1; \
+	done
+	$(GOTEST) -p=1 -v -timeout $(TEST_TIMEOUT) -coverprofile=$(TEST_COVERAGE_FILE) ./tests/e2e/...
+	$(GOTOOL) cover -html=$(TEST_COVERAGE_FILE) -o $(TEST_COVERAGE_HTML)
+	@echo "E2E test coverage report generated: $(TEST_COVERAGE_HTML)"
 
 # Run unit tests only (internal code + tests/unit)
 test-unit:
@@ -71,7 +91,7 @@ test-integration-coverage: db-up
 	@echo "Integration test coverage report generated: $(TEST_COVERAGE_HTML)"
 
 dev-basic-auth-header:
-	@EMAIL=$$(grep '^DEV_USER_EMAIL=' .env | cut -d'=' -f2); \
+    @EMAIL=$$(grep '^DEV_USER_EMAIL=' .env | cut -d'=' -f2); \
     PASSWORD=$$(grep '^DEV_USER_PASSWORD=' .env | cut -d'=' -f2); \
     TOKEN=$$(echo -n "$$EMAIL:$$PASSWORD" | base64); \
     echo "Authorization:"; \
@@ -147,8 +167,12 @@ test-db-setup:
 	fi
 
 # Benchmark tests
-benchmark: db-up
-	sleep 10
+benchmark: db-up 
+	@echo "Waiting for database to be ready..."
+	@while ! bash -c "echo > /dev/tcp/localhost/3309" 2>/dev/null; do \
+        echo "Waiting for MySQL on port 3309..."; \
+        sleep 1; \
+	done
 	$(GOTEST) -v -bench=. -benchmem ./tests/...
 
 # Benchmark unit tests
@@ -172,12 +196,14 @@ help:
 	@echo "  clean               - Clean build artifacts"
 	@echo ""
 	@echo "Test targets:"
-	@echo "  test                - Run all tests (unit + integration)"
+	@echo "  test                - Run all tests (unit + integration + e2e)"
 	@echo "  test-unit           - Run unit tests only"
 	@echo "  test-integration    - Run integration tests only"
+	@echo "  test-e2e            - Run end-to-end tests only"
 	@echo "  test-coverage       - Run tests with coverage"
 	@echo "  test-unit-coverage  - Run unit tests with coverage"
 	@echo "  test-integration-coverage - Run integration tests with coverage"
+	@echo "  test-e2e-coverage   - Run e2e tests with coverage"
 	@echo ""
 	@echo "Development targets:"
 	@echo "  lint                - Run linting"
@@ -212,8 +238,8 @@ help:
 	@echo "  install-dev-tools   - Install development tools"
 	@echo "  help                - Show this help"
 
-.PHONY: build build-linux clean test test-unit test-integration test-coverage \
-    test-unit-coverage test-integration-coverage lint fmt fmt-strict \
+.PHONY: build build-linux clean test test-unit test-integration test-e2e test-coverage \
+    test-unit-coverage test-integration-coverage test-e2e-coverage lint fmt fmt-strict \
     tidy deps verify install-hooks pre-commit-all run dev docker-compose-up \
     docker-compose-down db-up db-down test-db-setup benchmark benchmark-unit \
     install-dev-tools full help
