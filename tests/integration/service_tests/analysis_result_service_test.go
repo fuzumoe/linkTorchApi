@@ -50,6 +50,22 @@ func TestAnalysisService_Integration(t *testing.T) {
 
 	urlID := testURL.ID
 
+	// Create some test links for all test cases
+	testLinks := []model.Link{
+		{
+			URLID:      urlID,
+			Href:       "https://test-analysis.com/page1",
+			IsExternal: false,
+			StatusCode: 200,
+		},
+		{
+			URLID:      urlID,
+			Href:       "https://external-site.com/",
+			IsExternal: true,
+			StatusCode: 200,
+		},
+	}
+
 	t.Run("Record", func(t *testing.T) {
 		analysis := &model.AnalysisResult{
 			URLID:        urlID,
@@ -66,7 +82,7 @@ func TestAnalysisService_Integration(t *testing.T) {
 			UpdatedAt:    time.Now(),
 		}
 
-		err := analysisService.Record(analysis)
+		err := analysisService.Record(analysis, testLinks)
 		require.NoError(t, err, "Should record analysis result without error")
 		assert.NotZero(t, analysis.ID, "Analysis result ID should be set after recording")
 	})
@@ -107,9 +123,28 @@ func TestAnalysisService_Integration(t *testing.T) {
 			UpdatedAt:    time.Now(),
 		}
 
-		err := analysisService.Record(analysis1)
+		// Use different links for each analysis
+		links1 := []model.Link{
+			{
+				URLID:      urlID,
+				Href:       "https://test-analysis.com/first",
+				IsExternal: false,
+				StatusCode: 200,
+			},
+		}
+
+		links2 := []model.Link{
+			{
+				URLID:      urlID,
+				Href:       "https://test-analysis.com/second",
+				IsExternal: false,
+				StatusCode: 200,
+			},
+		}
+
+		err := analysisService.Record(analysis1, links1)
 		require.NoError(t, err, "Should record first analysis result.")
-		err = analysisService.Record(analysis2)
+		err = analysisService.Record(analysis2, links2)
 		require.NoError(t, err, "Should record second analysis result.")
 
 		// List analyses through the service.

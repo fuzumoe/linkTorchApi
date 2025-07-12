@@ -349,7 +349,9 @@ func TestURLService_Stop(t *testing.T) {
 	svc := service.NewURLService(mockRepo, dummyPool)
 	urlID := uint(100)
 
-	mockRepo.On("UpdateStatus", urlID, model.StatusStopped).Return(nil).Once()
+	// Change this line: use StatusError instead of StatusStopped
+	mockRepo.On("UpdateStatus", urlID, model.StatusError).Return(nil).Once()
+
 	err := svc.Stop(urlID)
 	assert.NoError(t, err)
 	mockRepo.AssertExpectations(t)

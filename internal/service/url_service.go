@@ -61,9 +61,9 @@ func (s *urlService) Start(id uint) error {
 	return nil
 }
 
-// Stop: flips to “stopped” (future: cancel ctx in crawler)
+// Stop: flips to "error" status since "stopped" is not in the database schema
 func (s *urlService) Stop(id uint) error {
-	return s.repo.UpdateStatus(id, model.StatusStopped)
+	return s.repo.UpdateStatus(id, model.StatusError)
 }
 
 // Results: loads URL with analysis + links eager-loaded

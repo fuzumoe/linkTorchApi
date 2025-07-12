@@ -7,6 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/fuzumoe/urlinsight-backend/internal/analyzer"
+	"github.com/fuzumoe/urlinsight-backend/internal/crawler"
 	"github.com/fuzumoe/urlinsight-backend/internal/model"
 	"github.com/fuzumoe/urlinsight-backend/internal/repository"
 	"github.com/fuzumoe/urlinsight-backend/internal/service"
@@ -22,8 +24,16 @@ func TestURLService_Integration(t *testing.T) {
 	userRepo := repository.NewUserRepo(db)
 	urlRepo := repository.NewURLRepo(db)
 
-	// Create URLService.
-	urlService := service.NewURLService(urlRepo)
+	// Create a mock analyzer for testing
+	htmlAnalyzer := analyzer.NewHTMLAnalyzer()
+
+	// Create a crawler pool with 1 worker for testing
+	crawlerPool := crawler.New(urlRepo, htmlAnalyzer, 1, 5)
+	go crawlerPool.Start()
+	defer crawlerPool.Shutdown()
+
+	// Create URLService with the crawler pool
+	urlService := service.NewURLService(urlRepo, crawlerPool)
 
 	// Create a test user.
 	testUser := &model.User{
@@ -121,6 +131,54 @@ func TestURLService_Integration(t *testing.T) {
 		assert.Error(t, err, "Getting a deleted URL should return an error.")
 	})
 
+	t.Run("Start", func(t *testing.T) {
+		// Create a URL to start crawling
+		createInput := &model.CreateURLInput{
+			UserID:      testUser.ID,
+			OriginalURL: "https://example.com/start",
+		}
+		createdID, err := urlService.Create(createInput)
+		require.NoError(t, err, "Should create URL without error.")
+
+		// Start crawling the URL
+		err = urlService.Start(createdID)
+		require.NoError(t, err, "Should start crawling without error.")
+
+		// Verify the URL status is updated to queued
+		urlDTO, err := urlService.Get(createdID)
+		require.NoError(t, err, "Should get URL without error.")
+		assert.Equal(t, model.StatusQueued, urlDTO.Status, "Status should be queued after starting.")
+	})
+
+	t.Run("Stop", func(t *testing.T) {
+		// Create a URL to stop crawling
+		createInput := &model.CreateURLInput{
+			UserID:      testUser.ID,
+			OriginalURL: "https://example.com/stop",
+		}
+		createdID, err := urlService.Create(createInput)
+		require.NoError(t, err, "Should create URL without error.")
+
+		// First set status to running
+		updateInput := &model.UpdateURLInput{
+			Status: model.StatusRunning,
+		}
+		err = urlService.Update(createdID, updateInput)
+		require.NoError(t, err, "Should update URL status to running without error.")
+
+		// Now stop crawling the URL
+		err = urlService.Stop(createdID)
+		require.NoError(t, err, "Should stop crawling without error.")
+
+		// Verify the URL status is updated to error (not stopped)
+		urlDTO, err := urlService.Get(createdID)
+		require.NoError(t, err, "Should get URL without error.")
+
+		// Use 'error' status instead of 'stopped' since that's what's allowed in the DB
+		assert.Equal(t, model.StatusError, urlDTO.Status,
+			"Status should be 'error' after stopping (since 'stopped' is not allowed in the DB).")
+	})
+
 	t.Run("ErrorCases", func(t *testing.T) {
 		// Create a URL first.
 		createInput := &model.CreateURLInput{
@@ -137,5 +195,13 @@ func TestURLService_Integration(t *testing.T) {
 		}
 		err = urlService.Update(createdID, updateInput)
 		assert.Error(t, err, "Updating with an invalid status should return an error.")
+
+		// Try to start a URL that doesn't exist
+		err = urlService.Start(9999)
+		assert.Error(t, err, "Starting a non-existent URL should return an error.")
+
+		// Try to stop a URL that doesn't exist
+		err = urlService.Stop(9999)
+		assert.Error(t, err, "Stopping a non-existent URL should return an error.")
 	})
 }

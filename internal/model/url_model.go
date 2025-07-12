@@ -20,7 +20,7 @@ type URL struct {
 	ID              uint             `gorm:"primaryKey;autoIncrement" json:"id"`
 	UserID          uint             `gorm:"not null;index" json:"user_id"`
 	OriginalURL     string           `gorm:"type:varchar(191);uniqueIndex;not null" json:"original_url"`
-	Status          string           `gorm:"type:enum('queued','running','done','error');default:'queued';not null" json:"status"`
+	Status          string           `gorm:"type:enum('queued','running','done','error','stopped');default:'queued';not null" json:"status"`
 	AnalysisResults []AnalysisResult `gorm:"foreignKey:URLID"`
 	Links           []Link           `gorm:"foreignKey:URLID"`
 	CreatedAt       time.Time        `gorm:"autoCreateTime" json:"created_at"`
@@ -38,7 +38,7 @@ type URLDTO struct {
 	ID          uint      `json:"id"`
 	UserID      uint      `json:"user_id"`
 	OriginalURL string    `json:"original_url"`
-	Status      string    `json:"status"`
+	Status      string    `json:"status" binding:"omitempty,oneof=queued running done error"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }

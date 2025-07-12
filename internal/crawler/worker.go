@@ -66,11 +66,18 @@ func (w *worker) process(id uint) {
 		return
 	}
 
-	// fetch row (need OriginalURL).
+	// Fetch row (need OriginalURL).
 	rec, err := w.repo.FindByID(id)
 	if err != nil {
 		setErr(w.repo, id, err)
 		logf("lookup: %v", err)
+		return
+	}
+
+	// NEW: Check if the URL status was externally set to 'stopped' already.
+	// This allows a stop request to take precedence.
+	if rec.Status == model.StatusStopped {
+		logf("aborting analysis because status is 'stopped'")
 		return
 	}
 
@@ -95,7 +102,15 @@ func (w *worker) process(id uint) {
 		return
 	}
 
-	_ = w.repo.UpdateStatus(id, model.StatusDone)
+	// Only mark as done if the status wasn't changed to stopped meanwhile.
+	updated, err := w.repo.FindByID(id)
+	if err != nil {
+		logf("lookup after analysis failed: %v", err)
+		return
+	}
+	if updated.Status != model.StatusStopped {
+		_ = w.repo.UpdateStatus(id, model.StatusDone)
+	}
 	logf("done in %s (links=%d)", time.Since(start).Truncate(time.Millisecond), len(links))
 }
 
