@@ -32,18 +32,18 @@ func (a *dummyPAnalyzer) Analyze(ctx context.Context, u *url.URL) (*model.Analys
 // TestPoolIntegration tests the integration of the crawler pool with a real database.
 func TestPoolIntegration(t *testing.T) {
 	var (
-		db    = utils.SetupTest(t)
-		user  model.User
-		dummy model.URL
+		db   = utils.SetupTest(t)
+		user model.User
+		urls = make(map[string]model.URL)
 	)
 	require.NotNil(t, db)
 
-	// Setup & Migration subtest
+	// Setup & Migration subtest.
 	t.Run("Setup and Create Records", func(t *testing.T) {
 		err := db.AutoMigrate(&model.User{}, &model.URL{}, &model.AnalysisResult{}, &model.Link{})
+
 		require.NoError(t, err)
 
-		// Create a real user record.
 		user = model.User{
 			Username: "Pool Tester",
 			Email:    fmt.Sprintf("pool_%d@example.com", time.Now().UnixNano()),
@@ -51,48 +51,168 @@ func TestPoolIntegration(t *testing.T) {
 		err = db.Create(&user).Error
 		require.NoError(t, err)
 
-		// Insert a dummy URL record with a valid UserID.
-		dummy = model.URL{
-			OriginalURL: "http://example.com/pool",
+		t.Run("Create Basic URL", func(t *testing.T) {
+			basicURL := model.URL{
+				OriginalURL: "http://example.com/basic",
+				Status:      model.StatusQueued,
+				UserID:      user.ID,
+			}
+			err = db.Create(&basicURL).Error
+			require.NoError(t, err)
+			urls["basic"] = basicURL
+		})
+
+		t.Run("Create Priority URL", func(t *testing.T) {
+			priorityURL := model.URL{
+				OriginalURL: "http://example.com/priority",
+				Status:      model.StatusQueued,
+				UserID:      user.ID,
+			}
+			err = db.Create(&priorityURL).Error
+			require.NoError(t, err)
+			urls["priority"] = priorityURL
+		})
+
+		t.Run("Create Already Stopped URL", func(t *testing.T) {
+			stoppedURL := model.URL{
+				OriginalURL: "http://example.com/stopped",
+				Status:      model.StatusStopped,
+				UserID:      user.ID,
+			}
+			err = db.Create(&stoppedURL).Error
+			require.NoError(t, err)
+			urls["stopped"] = stoppedURL
+		})
+	})
+
+	// Test basic processing
+	t.Run("Basic Processing", func(t *testing.T) {
+		urlRepo := repository.NewURLRepo(db)
+		analyzer := &dummyPAnalyzer{}
+		pool := crawler.New(urlRepo, analyzer, 2, 10)
+
+		// Create a context that can be cancelled
+		ctx, cancel := context.WithCancel(context.Background())
+
+		defer cancel()
+		go pool.Start(ctx)
+
+		t.Run("Enqueue Single URL", func(t *testing.T) {
+			pool.Enqueue(urls["basic"].ID)
+			time.Sleep(500 * time.Millisecond)
+		})
+
+		t.Run("Verify URL Status", func(t *testing.T) {
+			var updated model.URL
+			err := db.First(&updated, urls["basic"].ID).Error
+
+			require.NoError(t, err)
+			assert.Equal(t, model.StatusDone, updated.Status,
+				"Expected basic URL status to be %s", model.StatusDone)
+		})
+
+		cancel()
+		time.Sleep(100 * time.Millisecond)
+	})
+
+	t.Run("Multiple URLs", func(t *testing.T) {
+		urlRepo := repository.NewURLRepo(db)
+		analyzer := &dummyPAnalyzer{}
+		pool := crawler.New(urlRepo, analyzer, 1, 5)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		go pool.Start(ctx)
+
+		t.Run("Enqueue Multiple URLs", func(t *testing.T) {
+			// Reset URL statuses first
+			err := db.Model(&model.URL{}).Where("id IN ?", []uint{urls["basic"].ID, urls["priority"].ID}).
+				Update("status", model.StatusQueued).Error
+
+			require.NoError(t, err)
+
+			pool.Enqueue(urls["basic"].ID)
+			pool.Enqueue(urls["priority"].ID)
+
+			time.Sleep(1 * time.Second)
+		})
+
+		t.Run("Verify Both URLs Processed", func(t *testing.T) {
+			var basicURL, priorityURL model.URL
+
+			err := db.First(&basicURL, urls["basic"].ID).Error
+			require.NoError(t, err)
+			assert.Equal(t, model.StatusDone, basicURL.Status, "Basic URL should be done")
+
+			err = db.First(&priorityURL, urls["priority"].ID).Error
+			require.NoError(t, err)
+			assert.Equal(t, model.StatusDone, priorityURL.Status, "Priority URL should be done")
+		})
+
+		cancel()
+		time.Sleep(100 * time.Millisecond)
+	})
+
+	t.Run("Context Cancellation", func(t *testing.T) {
+		urlRepo := repository.NewURLRepo(db)
+		analyzer := &dummyPAnalyzer{}
+		pool := crawler.New(urlRepo, analyzer, 1, 5)
+		ctx, cancel := context.WithCancel(context.Background())
+
+		cancelURL := model.URL{
+			OriginalURL: "http://example.com/cancel",
 			Status:      model.StatusQueued,
 			UserID:      user.ID,
 		}
-		err = db.Create(&dummy).Error
+		err := db.Create(&cancelURL).Error
 		require.NoError(t, err)
+
+		t.Run("Start and Cancel Immediately", func(t *testing.T) {
+
+			go pool.Start(ctx)
+
+			pool.Enqueue(cancelURL.ID)
+
+			cancel()
+
+			time.Sleep(100 * time.Millisecond)
+		})
+
+		t.Run("Verify URL Status After Cancellation", func(t *testing.T) {
+			var updated model.URL
+
+			err := db.First(&updated, cancelURL.ID).Error
+
+			require.NoError(t, err)
+
+			t.Logf("URL status after cancellation: %s", updated.Status)
+		})
 	})
 
-	// Execute pool workers in a subtest.
-	t.Run("Run Pool and Process Tasks", func(t *testing.T) {
-		// Create a real repository using the URL repository implementation.
+	t.Run("Already Stopped URL", func(t *testing.T) {
 		urlRepo := repository.NewURLRepo(db)
-
-		// Use the dummy analyzer.
 		analyzer := &dummyPAnalyzer{}
+		pool := crawler.New(urlRepo, analyzer, 1, 5)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 
-		// Create a pool with 2 workers and a buffer size of 10.
-		pool := crawler.New(urlRepo, analyzer, 2, 10)
-		pool.Start()
+		go pool.Start(ctx)
 
-		// Enqueue the dummy task (using the dummy record's ID).
-		pool.Enqueue(dummy.ID)
+		t.Run("Enqueue Stopped URL", func(t *testing.T) {
+			pool.Enqueue(urls["stopped"].ID)
 
-		// Optionally, enqueue more tasks:
-		// pool.Enqueue(dummy.ID)
+			time.Sleep(500 * time.Millisecond)
+		})
 
-		// Allow time for the pool workers to process the task.
-		time.Sleep(1 * time.Second)
+		t.Run("Verify Stopped URL Handling", func(t *testing.T) {
+			var updated model.URL
+			err := db.First(&updated, urls["stopped"].ID).Error
+			require.NoError(t, err)
 
-		// Shutdown the pool.
-		pool.Shutdown()
-	})
+			t.Logf("Previously stopped URL now has status: %s", updated.Status)
+		})
 
-	// Verification subtest.
-	t.Run("Verify Task Processing", func(t *testing.T) {
-		var updated model.URL
-		err := db.First(&updated, dummy.ID).Error
-		require.NoError(t, err)
-
-		// Assert that the URL record's status is updated to "done".
-		assert.Equal(t, model.StatusDone, updated.Status, "Expected URL record status to be %s", model.StatusDone)
+		cancel()
+		time.Sleep(100 * time.Millisecond)
 	})
 }

@@ -29,73 +29,183 @@ func (a *dummyAnalyzer) Analyze(ctx context.Context, u *url.URL) (*model.Analysi
 	return result, links, nil
 }
 
-// TestWorkerIntegration tests the worker's ability to process tasks with a real database.
+type slowDummyAnalyzer struct{}
+
+func (a *slowDummyAnalyzer) Analyze(ctx context.Context, u *url.URL) (*model.AnalysisResult, []model.Link, error) {
+
+	select {
+	case <-ctx.Done():
+		return nil, nil, ctx.Err()
+	case <-time.After(5 * time.Second):
+		result := &model.AnalysisResult{
+			HTMLVersion: "HTML5",
+			Title:       "Slow Analyzer Result",
+		}
+		return result, nil, nil
+	}
+}
+
 func TestWorkerIntegration(t *testing.T) {
-	var (
-		db    = utils.SetupTest(t)
-		user  model.User
-		dummy model.URL
-	)
-	require.NotNil(t, db)
+	db := utils.SetupTest(t)
+	require.NotNil(t, db, "Database should be initialized")
 
-	// Setup and record creation.
-	t.Run("Setup and Create Records", func(t *testing.T) {
+	t.Run("Database Setup", func(t *testing.T) {
 		err := db.AutoMigrate(&model.User{}, &model.URL{}, &model.AnalysisResult{}, &model.Link{})
-		require.NoError(t, err)
-
-		// Create a real user record.
-		user = model.User{
-			Username: "Integration Tester",
-			Email:    fmt.Sprintf("tester_%d@example.com", time.Now().UnixNano()),
-		}
-		err = db.Create(&user).Error
-		require.NoError(t, err)
-
-		// Insert a dummy URL record with a valid UserID.
-		dummy = model.URL{
-			OriginalURL: "http://example.com/integration",
-			Status:      model.StatusQueued,
-			UserID:      user.ID,
-		}
-		err = db.Create(&dummy).Error
-		require.NoError(t, err)
+		require.NoError(t, err, "Database migration should succeed")
 	})
 
-	// Execute worker.
-	t.Run("Run Worker", func(t *testing.T) {
-		// Create repository and dummy analyzer.
-		urlRepo := repository.NewURLRepo(db)
-		analyzer := &dummyAnalyzer{}
+	t.Run("Normal Processing Flow", func(t *testing.T) {
+		var user model.User
+		var url model.URL
 
-		// Create a cancelable context.
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		t.Run("Create Test Data", func(t *testing.T) {
+			user = model.User{
+				Username: "Worker Tester",
+				Email:    fmt.Sprintf("worker_%d@example.com", time.Now().UnixNano()),
+			}
+			err := db.Create(&user).Error
+			require.NoError(t, err, "User creation should succeed")
 
-		// Create a worker with the real repository and dummy analyzer.
-		worker := crawler.NewWorker(int(dummy.ID), ctx, urlRepo, analyzer)
+			url = model.URL{
+				OriginalURL: "http://example.com/worker-test",
+				Status:      model.StatusQueued,
+				UserID:      user.ID,
+			}
+			err = db.Create(&url).Error
+			require.NoError(t, err, "URL creation should succeed")
+		})
 
-		// Run the worker in a separate goroutine using a tasks channel.
-		tasks := make(chan uint, 1)
-		go worker.Run(tasks)
+		t.Run("Execute Worker", func(t *testing.T) {
+			urlRepo := repository.NewURLRepo(db)
+			analyzer := &dummyAnalyzer{}
 
-		// Enqueue the task.
-		tasks <- dummy.ID
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
 
-		// Allow time for the worker to process the task.
-		time.Sleep(500 * time.Millisecond)
+			worker := crawler.NewWorker(1, ctx, urlRepo, analyzer)
 
-		// Shutdown the worker.
-		cancel()
-		close(tasks)
+			tasks := make(chan uint, 1)
+			workerDone := make(chan struct{})
+
+			go func() {
+				worker.Run(tasks)
+				close(workerDone)
+			}()
+
+			t.Run("Send Task", func(t *testing.T) {
+				tasks <- url.ID
+				t.Logf("Task with ID %d sent to worker", url.ID)
+			})
+
+			time.Sleep(500 * time.Millisecond)
+
+			t.Run("Shutdown Worker", func(t *testing.T) {
+				close(tasks)
+				cancel()
+				<-workerDone
+				t.Log("Worker shut down successfully")
+			})
+		})
+
+		t.Run("Verify Results", func(t *testing.T) {
+			t.Run("URL Status", func(t *testing.T) {
+				var updated model.URL
+				err := db.First(&updated, url.ID).Error
+				require.NoError(t, err, "Should find URL in database")
+				assert.Equal(t, model.StatusDone, updated.Status,
+					"URL status should be updated to %s", model.StatusDone)
+			})
+
+			t.Run("Analysis Results", func(t *testing.T) {
+				var results model.AnalysisResult
+				err := db.Where("url_id = ?", url.ID).First(&results).Error
+				require.NoError(t, err, "Analysis results should be saved")
+				assert.Equal(t, "Integration Test Title", results.Title,
+					"Analysis title should match expected value")
+			})
+
+			t.Run("Saved Links", func(t *testing.T) {
+				var count int64
+				err := db.Raw("SELECT COUNT(*) FROM links WHERE url_id = ?", url.ID).Count(&count).Error
+				require.NoError(t, err, "Should be able to count links")
+				assert.Greater(t, count, int64(0), "At least one link should be saved")
+			})
+		})
 	})
 
-	// Verify the results.
-	t.Run("Verify Task Processing", func(t *testing.T) {
-		var updated model.URL
-		err := db.First(&updated, dummy.ID).Error
-		require.NoError(t, err)
+	t.Run("Context Cancellation Flow", func(t *testing.T) {
+		var user model.User
+		var cancelURL model.URL
 
-		// Assert that the record status is updated to "done".
-		assert.Equal(t, model.StatusDone, updated.Status, "Expected URL record status to be %s", model.StatusDone)
+		t.Run("Create Test Data", func(t *testing.T) {
+			err := db.First(&user).Error
+			if err != nil {
+				user = model.User{
+					Username: "Cancel Tester",
+					Email:    fmt.Sprintf("cancel_%d@example.com", time.Now().UnixNano()),
+				}
+				err = db.Create(&user).Error
+				require.NoError(t, err, "User creation should succeed")
+			}
+
+			cancelURL = model.URL{
+				OriginalURL: "http://example.com/cancel-test",
+				Status:      model.StatusQueued,
+				UserID:      user.ID,
+			}
+			err = db.Create(&cancelURL).Error
+			require.NoError(t, err, "URL creation should succeed")
+		})
+
+		t.Run("Execute and Cancel Worker", func(t *testing.T) {
+			urlRepo := repository.NewURLRepo(db)
+			slowAnalyzer := &slowDummyAnalyzer{}
+
+			ctx, cancel := context.WithCancel(context.Background())
+
+			worker := crawler.NewWorker(2, ctx, urlRepo, slowAnalyzer)
+			tasks := make(chan uint, 1)
+			workerDone := make(chan struct{})
+
+			go func() {
+				worker.Run(tasks)
+				close(workerDone)
+			}()
+
+			t.Run("Send Task and Cancel", func(t *testing.T) {
+				tasks <- cancelURL.ID
+				t.Logf("Task with ID %d sent to worker", cancelURL.ID)
+
+				cancel()
+				t.Log("Context cancelled immediately")
+
+				close(tasks)
+
+				<-workerDone
+				t.Log("Worker shut down after cancellation")
+			})
+
+			time.Sleep(100 * time.Millisecond)
+		})
+
+		t.Run("Verify Cancellation Behavior", func(t *testing.T) {
+			var updated model.URL
+			err := db.First(&updated, cancelURL.ID).Error
+			require.NoError(t, err, "Should find URL in database")
+
+			t.Logf("URL status after cancellation: %s", updated.Status)
+
+			if updated.Status == model.StatusQueued {
+				t.Log("URL remained in queued state after cancellation")
+			} else if updated.Status == model.StatusStopped {
+				t.Log("URL was marked as stopped after cancellation")
+			} else {
+				t.Errorf("Unexpected URL status after cancellation: %s", updated.Status)
+			}
+			var resultsCount int64
+			err = db.Model(&model.AnalysisResult{}).Where("url_id = ?", cancelURL.ID).Count(&resultsCount).Error
+			require.NoError(t, err, "Should be able to count results")
+			assert.Equal(t, int64(0), resultsCount, "No analysis results should be saved after cancellation")
+		})
 	})
 }

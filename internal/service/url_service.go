@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/fuzumoe/urlinsight-backend/internal/crawler"
 	"github.com/fuzumoe/urlinsight-backend/internal/model"
@@ -54,6 +55,12 @@ func NewURLService(r repository.URLRepository, p crawler.Pool) URLService {
 
 // Start: visible to PATCH /urls/:id/start
 func (s *urlService) Start(id uint) error {
+	// First check if the URL exists
+	_, err := s.repo.FindByID(id)
+	if err != nil {
+		return fmt.Errorf("cannot start crawling: %w", err)
+	}
+
 	if err := s.repo.UpdateStatus(id, model.StatusQueued); err != nil {
 		return err
 	}
@@ -63,6 +70,12 @@ func (s *urlService) Start(id uint) error {
 
 // Stop: flips to "error" status since "stopped" is not in the database schema
 func (s *urlService) Stop(id uint) error {
+	// First check if the URL exists
+	_, err := s.repo.FindByID(id)
+	if err != nil {
+		return fmt.Errorf("cannot stop crawling: %w", err)
+	}
+
 	return s.repo.UpdateStatus(id, model.StatusError)
 }
 

@@ -1,6 +1,7 @@
 package service_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -20,31 +21,50 @@ func TestURLService_Integration(t *testing.T) {
 	db := utils.SetupTest(t)
 	defer utils.CleanTestData(t)
 
-	// Create repositories.
-	userRepo := repository.NewUserRepo(db)
-	urlRepo := repository.NewURLRepo(db)
+	// Setup test environment
+	var (
+		testUser      *model.User
+		urlService    service.URLService
+		crawlerCtx    context.Context
+		cancelCrawler context.CancelFunc
+	)
 
-	// Create a mock analyzer for testing
-	htmlAnalyzer := analyzer.NewHTMLAnalyzer()
+	t.Run("Setup", func(t *testing.T) {
+		// Create repositories.
+		userRepo := repository.NewUserRepo(db)
+		urlRepo := repository.NewURLRepo(db)
 
-	// Create a crawler pool with 1 worker for testing
-	crawlerPool := crawler.New(urlRepo, htmlAnalyzer, 1, 5)
-	go crawlerPool.Start()
-	defer crawlerPool.Shutdown()
+		// Create a HTML analyzer for testing
+		htmlAnalyzer := analyzer.NewHTMLAnalyzer()
 
-	// Create URLService with the crawler pool
-	urlService := service.NewURLService(urlRepo, crawlerPool)
+		// Create a crawler pool with context for proper shutdown
+		crawlerCtx, cancelCrawler = context.WithCancel(context.Background())
+		crawlerPool := crawler.New(urlRepo, htmlAnalyzer, 1, 5)
 
-	// Create a test user.
-	testUser := &model.User{
-		Username:  "testuser", // using the field from the user model.
-		Email:     "test@example.com",
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-	}
-	err := userRepo.Create(testUser)
-	require.NoError(t, err, "Should create test user without error.")
-	require.NotZero(t, testUser.ID, "User ID should be set after creation.")
+		// Start the crawler pool in a goroutine (it now blocks until context is cancelled)
+		go crawlerPool.Start(crawlerCtx)
+
+		// Create URLService with the crawler pool
+		urlService = service.NewURLService(urlRepo, crawlerPool)
+
+		// Create a test user.
+		testUser = &model.User{
+			Username:  "testuser",
+			Email:     "test@example.com",
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		}
+		err := userRepo.Create(testUser)
+		require.NoError(t, err, "Should create test user without error.")
+		require.NotZero(t, testUser.ID, "User ID should be set after creation.")
+	})
+
+	// Ensure crawler is shutdown when test completes
+	defer func() {
+		if cancelCrawler != nil {
+			cancelCrawler()
+		}
+	}()
 
 	t.Run("Create and Get", func(t *testing.T) {
 		// Create a URL through URLService.
@@ -170,13 +190,30 @@ func TestURLService_Integration(t *testing.T) {
 		err = urlService.Stop(createdID)
 		require.NoError(t, err, "Should stop crawling without error.")
 
-		// Verify the URL status is updated to error (not stopped)
+		// Verify the URL status is updated to error
 		urlDTO, err := urlService.Get(createdID)
 		require.NoError(t, err, "Should get URL without error.")
 
-		// Use 'error' status instead of 'stopped' since that's what's allowed in the DB
+		// URLService.Stop now sets status to 'error' as per the implementation
 		assert.Equal(t, model.StatusError, urlDTO.Status,
-			"Status should be 'error' after stopping (since 'stopped' is not allowed in the DB).")
+			"Status should be set to 'error' when stopping a URL via the service.")
+	})
+
+	t.Run("Results", func(t *testing.T) {
+		// Create a URL for testing results
+		createInput := &model.CreateURLInput{
+			UserID:      testUser.ID,
+			OriginalURL: "https://example.com/results",
+		}
+		createdID, err := urlService.Create(createInput)
+		require.NoError(t, err, "Should create URL without error.")
+
+		// Call Results method - should work even without actual analysis results
+		resultsDTO, err := urlService.Results(createdID)
+		require.NoError(t, err, "Should get results without error")
+		assert.NotNil(t, resultsDTO, "Results DTO should not be nil")
+		assert.Equal(t, "https://example.com/results", resultsDTO.OriginalURL,
+			"Results should contain the original URL")
 	})
 
 	t.Run("ErrorCases", func(t *testing.T) {
@@ -188,20 +225,24 @@ func TestURLService_Integration(t *testing.T) {
 		createdID, err := urlService.Create(createInput)
 		require.NoError(t, err, "Should create URL without error.")
 
-		// Try to update with an invalid status value.
-		updateInput := &model.UpdateURLInput{
-			OriginalURL: "https://example.com/error-updated",
-			Status:      "invalid_status",
-		}
-		err = urlService.Update(createdID, updateInput)
-		assert.Error(t, err, "Updating with an invalid status should return an error.")
+		t.Run("InvalidStatus", func(t *testing.T) {
+			// Try to update with an invalid status value.
+			updateInput := &model.UpdateURLInput{
+				OriginalURL: "https://example.com/error-updated",
+				Status:      "invalid_status",
+			}
+			err = urlService.Update(createdID, updateInput)
+			assert.Error(t, err, "Updating with an invalid status should return an error.")
+		})
 
-		// Try to start a URL that doesn't exist
-		err = urlService.Start(9999)
-		assert.Error(t, err, "Starting a non-existent URL should return an error.")
+		t.Run("NonExistentURL", func(t *testing.T) {
+			// Try to start a URL that doesn't exist
+			err = urlService.Start(9999)
+			assert.Error(t, err, "Starting a non-existent URL should return an error.")
 
-		// Try to stop a URL that doesn't exist
-		err = urlService.Stop(9999)
-		assert.Error(t, err, "Stopping a non-existent URL should return an error.")
+			// Try to stop a URL that doesn't exist
+			err = urlService.Stop(9999)
+			assert.Error(t, err, "Stopping a non-existent URL should return an error.")
+		})
 	})
 }

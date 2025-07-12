@@ -1,6 +1,7 @@
 package service_test
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -13,20 +14,20 @@ import (
 	"github.com/fuzumoe/urlinsight-backend/internal/service"
 )
 
-// DummyCrawlerPool
+// DummyCrawlerPool updated to match new interface
 type DummyCrawlerPool struct{}
 
-func (d *DummyCrawlerPool) Start()          {}
-func (d *DummyCrawlerPool) Enqueue(id uint) {}
-func (d *DummyCrawlerPool) Shutdown()       {}
+func (d *DummyCrawlerPool) Start(ctx context.Context) {}
+func (d *DummyCrawlerPool) Enqueue(id uint)           {}
+func (d *DummyCrawlerPool) Shutdown()                 {}
 
-// MockCrawlerPool mocks implementation for testing Start and Stop.
+// MockCrawlerPool updated to match new interface
 type MockCrawlerPool struct {
 	mock.Mock
 }
 
-func (m *MockCrawlerPool) Start() {
-	m.Called()
+func (m *MockCrawlerPool) Start(ctx context.Context) {
+	m.Called(ctx)
 }
 
 func (m *MockCrawlerPool) Enqueue(id uint) {
@@ -332,14 +333,51 @@ func TestURLService_Start(t *testing.T) {
 	svc := service.NewURLService(mockRepo, mockPool)
 	urlID := uint(100)
 
-	// Test that Start calls repo.UpdateStatus with queued status and enqueues the URL.
-	mockRepo.On("UpdateStatus", urlID, model.StatusQueued).Return(nil).Once()
-	mockPool.On("Enqueue", urlID).Once()
+	t.Run("Success", func(t *testing.T) {
+		// Now we need to mock the FindByID call first
+		testURL := &model.URL{
+			ID:          urlID,
+			OriginalURL: "http://example.com",
+			Status:      model.StatusQueued,
+		}
 
-	err := svc.Start(urlID)
-	assert.NoError(t, err)
-	mockRepo.AssertExpectations(t)
-	mockPool.AssertExpectations(t)
+		mockRepo.On("FindByID", urlID).Return(testURL, nil).Once()
+		mockRepo.On("UpdateStatus", urlID, model.StatusQueued).Return(nil).Once()
+		mockPool.On("Enqueue", urlID).Once()
+
+		err := svc.Start(urlID)
+		assert.NoError(t, err)
+		mockRepo.AssertExpectations(t)
+		mockPool.AssertExpectations(t)
+	})
+
+	t.Run("URL Not Found", func(t *testing.T) {
+		expectedErr := errors.New("record not found")
+		mockRepo.On("FindByID", urlID).Return(nil, expectedErr).Once()
+
+		err := svc.Start(urlID)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot start crawling")
+		assert.Contains(t, err.Error(), expectedErr.Error())
+		mockRepo.AssertExpectations(t)
+	})
+
+	t.Run("UpdateStatus Error", func(t *testing.T) {
+		testURL := &model.URL{
+			ID:          urlID,
+			OriginalURL: "http://example.com",
+			Status:      model.StatusQueued,
+		}
+
+		expectedErr := errors.New("update status error")
+		mockRepo.On("FindByID", urlID).Return(testURL, nil).Once()
+		mockRepo.On("UpdateStatus", urlID, model.StatusQueued).Return(expectedErr).Once()
+
+		err := svc.Start(urlID)
+		assert.Error(t, err)
+		assert.Equal(t, expectedErr, err)
+		mockRepo.AssertExpectations(t)
+	})
 }
 
 func TestURLService_Stop(t *testing.T) {
@@ -348,11 +386,49 @@ func TestURLService_Stop(t *testing.T) {
 	svc := service.NewURLService(mockRepo, dummyPool)
 	urlID := uint(100)
 
-	mockRepo.On("UpdateStatus", urlID, model.StatusError).Return(nil).Once()
+	t.Run("Success", func(t *testing.T) {
+		// Now we need to mock the FindByID call first
+		testURL := &model.URL{
+			ID:          urlID,
+			OriginalURL: "http://example.com",
+			Status:      model.StatusRunning,
+		}
 
-	err := svc.Stop(urlID)
-	assert.NoError(t, err)
-	mockRepo.AssertExpectations(t)
+		mockRepo.On("FindByID", urlID).Return(testURL, nil).Once()
+		mockRepo.On("UpdateStatus", urlID, model.StatusError).Return(nil).Once()
+
+		err := svc.Stop(urlID)
+		assert.NoError(t, err)
+		mockRepo.AssertExpectations(t)
+	})
+
+	t.Run("URL Not Found", func(t *testing.T) {
+		expectedErr := errors.New("record not found")
+		mockRepo.On("FindByID", urlID).Return(nil, expectedErr).Once()
+
+		err := svc.Stop(urlID)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot stop crawling")
+		assert.Contains(t, err.Error(), expectedErr.Error())
+		mockRepo.AssertExpectations(t)
+	})
+
+	t.Run("UpdateStatus Error", func(t *testing.T) {
+		testURL := &model.URL{
+			ID:          urlID,
+			OriginalURL: "http://example.com",
+			Status:      model.StatusRunning,
+		}
+
+		expectedErr := errors.New("update status error")
+		mockRepo.On("FindByID", urlID).Return(testURL, nil).Once()
+		mockRepo.On("UpdateStatus", urlID, model.StatusError).Return(expectedErr).Once()
+
+		err := svc.Stop(urlID)
+		assert.Error(t, err)
+		assert.Equal(t, expectedErr, err)
+		mockRepo.AssertExpectations(t)
+	})
 }
 
 func TestURLService_Results(t *testing.T) {

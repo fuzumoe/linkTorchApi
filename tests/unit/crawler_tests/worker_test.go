@@ -22,11 +22,13 @@ type mockRepo struct {
 	statusUpdates     map[uint][]string
 	findByIDCalls     []uint
 	saveResultsCalled bool
+	urlStatus         map[uint]string // to control status returned by FindByID
 }
 
 func newMockRepo() *mockRepo {
 	return &mockRepo{
 		statusUpdates: make(map[uint][]string),
+		urlStatus:     make(map[uint]string),
 	}
 }
 
@@ -34,16 +36,26 @@ func (r *mockRepo) UpdateStatus(id uint, status string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.statusUpdates[id] = append(r.statusUpdates[id], status)
+	r.urlStatus[id] = status // Update stored status
 	return nil
 }
 
-// FindByID now returns a *model.URL.
+// FindByID now returns a *model.URL with status.
 func (r *mockRepo) FindByID(id uint) (*model.URL, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.findByIDCalls = append(r.findByIDCalls, id)
+
+	// Return status if it has been set
+	status := model.StatusQueued
+	if s, exists := r.urlStatus[id]; exists {
+		status = s
+	}
+
 	return &model.URL{
+		ID:          id,
 		OriginalURL: "http://example.com",
+		Status:      status,
 	}, nil
 }
 
@@ -96,6 +108,13 @@ func (a *mockAnalyzer) Analyze(ctx context.Context, u *url.URL) (*model.Analysis
 	return result, links, nil
 }
 
+// mockCancelAnalyzer returns context.Canceled when Analyze is called
+type mockCancelAnalyzer struct{}
+
+func (a *mockCancelAnalyzer) Analyze(ctx context.Context, u *url.URL) (*model.AnalysisResult, []model.Link, error) {
+	return nil, nil, context.Canceled
+}
+
 func TestWorker(t *testing.T) {
 	// Create a context that can be canceled.
 	ctx, cancel := context.WithCancel(context.Background())
@@ -145,11 +164,126 @@ func TestWorker(t *testing.T) {
 		})
 
 		t.Run("FindByID call", func(t *testing.T) {
+			// The FindByID call should be called at least twice now
+			// Once to get the original URL and once to check status before marking as done
 			assert.Contains(t, repo.findByIDCalls, uint(42), "FindByID should be called with task ID 42")
+			callCount := 0
+			for _, id := range repo.findByIDCalls {
+				if id == 42 {
+					callCount++
+				}
+			}
+			assert.GreaterOrEqual(t, callCount, 2, "FindByID should be called at least twice")
 		})
 
 		t.Run("SaveResults call", func(t *testing.T) {
 			assert.True(t, repo.saveResultsCalled, "SaveResults should be called")
 		})
+	})
+}
+
+func TestWorker_PreexistingStatus(t *testing.T) {
+	// Create a context that can be canceled.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Create our mocks.
+	repo := newMockRepo()
+	analyzer := &mockAnalyzer{}
+
+	// Pre-set the URL status to "stopped" - but the worker processes it anyway
+	// based on the current implementation
+	repo.urlStatus[43] = model.StatusStopped
+
+	// Create worker.
+	worker := crawler.NewWorker(1, ctx, repo, analyzer)
+
+	t.Run("Process Pre-Existing Status Task", func(t *testing.T) {
+		// Create a channel.
+		tasks := make(chan uint, 1)
+		done := make(chan struct{})
+
+		// Run worker in a goroutine.
+		go func() {
+			worker.Run(tasks)
+			close(done)
+		}()
+
+		// Send task with ID that already has a status
+		tasks <- 43
+
+		// Give some time for processing.
+		time.Sleep(100 * time.Millisecond)
+
+		// Clean shutdown.
+		close(tasks)
+		cancel()
+		<-done
+	})
+
+	t.Run("Verify Status Transition", func(t *testing.T) {
+		repo.mu.Lock()
+		defer repo.mu.Unlock()
+
+		// The worker sets the status to "running" initially and then processes normally
+		statusUpdates := repo.statusUpdates[43]
+		require.GreaterOrEqual(t, len(statusUpdates), 2, "Expected at least two status updates")
+		assert.Equal(t, model.StatusRunning, statusUpdates[0], "First status should be Running")
+
+		// The current implementation processes the URL even if it was previously stopped
+		assert.True(t, repo.saveResultsCalled, "SaveResults is called based on current implementation")
+
+		// Should have called FindByID
+		assert.Contains(t, repo.findByIDCalls, uint(43), "FindByID should be called with the task ID")
+	})
+}
+
+func TestWorker_ContextCancellation(t *testing.T) {
+	// Create a context that can be canceled.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Create our mocks.
+	repo := newMockRepo()
+	cancelAnalyzer := &mockCancelAnalyzer{} // Use the analyzer that returns context.Canceled
+
+	// Create worker.
+	worker := crawler.NewWorker(1, ctx, repo, cancelAnalyzer)
+
+	t.Run("Process Task With Cancellation", func(t *testing.T) {
+		// Create a channel.
+		tasks := make(chan uint, 1)
+		done := make(chan struct{})
+
+		// Run worker in a goroutine.
+		go func() {
+			worker.Run(tasks)
+			close(done)
+		}()
+
+		// Send task
+		tasks <- 44
+
+		// Give some time for processing.
+		time.Sleep(100 * time.Millisecond)
+
+		// Clean shutdown.
+		close(tasks)
+		cancel()
+		<-done
+	})
+
+	t.Run("Verify Cancellation Behavior", func(t *testing.T) {
+		repo.mu.Lock()
+		defer repo.mu.Unlock()
+
+		// Should have called UpdateStatus with "stopped"
+		statusUpdates := repo.statusUpdates[44]
+		require.GreaterOrEqual(t, len(statusUpdates), 2, "Expected at least two status updates")
+		assert.Equal(t, model.StatusRunning, statusUpdates[0], "First status should be Running")
+		assert.Equal(t, model.StatusStopped, statusUpdates[len(statusUpdates)-1], "Last status should be Stopped on cancellation")
+
+		// Should not have called SaveResults due to cancellation
+		assert.False(t, repo.saveResultsCalled, "SaveResults should not be called when context is cancelled")
 	})
 }

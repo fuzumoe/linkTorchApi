@@ -103,8 +103,13 @@ func TestPool_ProcessTasks(t *testing.T) {
 	// Create a pool with 2 workers and a buffer size of 10.
 	pool := crawler.New(mockPRepo, mockAnal, 2, 10)
 
+	// Create a context that can be cancelled
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	t.Run("Start and Enqueue Tasks", func(t *testing.T) {
-		pool.Start()
+		// Start the pool in a goroutine since it now blocks until context is cancelled
+		go pool.Start(ctx)
 
 		// Enqueue several tasks.
 		taskIDs := []uint{1, 2, 3}
@@ -117,8 +122,11 @@ func TestPool_ProcessTasks(t *testing.T) {
 	})
 
 	t.Run("Shutdown Pool", func(t *testing.T) {
-		// Shutdown the pool.
-		pool.Shutdown()
+		// Shutdown the pool by cancelling the context
+		cancel()
+
+		// Give some time for the pool to clean up
+		time.Sleep(100 * time.Millisecond)
 	})
 
 	// Verify that tasks were processed.
