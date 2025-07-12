@@ -7,7 +7,10 @@ import (
 
 // AnalysisService manages creation and retrieval of analysis results.
 type AnalysisService interface {
-	Record(ar *model.AnalysisResult) error
+	// Record persists one AnalysisResult and all its Link rows atomically.
+	Record(res *model.AnalysisResult, links []model.Link) error
+
+	// List returns paginated snapshots for a URL, newest first.
 	List(urlID uint, p repository.Pagination) ([]*model.AnalysisResultDTO, error)
 }
 
@@ -16,14 +19,16 @@ type analysisService struct {
 }
 
 // NewAnalysisService constructs an AnalysisService.
-func NewAnalysisService(repo repository.AnalysisResultRepository) AnalysisService {
-	return &analysisService{repo: repo}
+func NewAnalysisService(r repository.AnalysisResultRepository) AnalysisService {
+	return &analysisService{repo: r}
 }
 
-func (s *analysisService) Record(ar *model.AnalysisResult) error {
-	return s.repo.Create(ar)
+// Record delegates to repo.Create, which stores result + links in one TX.
+func (s *analysisService) Record(res *model.AnalysisResult, links []model.Link) error {
+	return s.repo.Create(res, links)
 }
 
+// List converts the repo models to DTOs and applies Pagination.
 func (s *analysisService) List(urlID uint, p repository.Pagination) ([]*model.AnalysisResultDTO, error) {
 	results, err := s.repo.ListByURL(urlID, p)
 	if err != nil {

@@ -13,13 +13,13 @@ import (
 	"github.com/fuzumoe/urlinsight-backend/internal/service"
 )
 
-// MockAnalysisRepo is a mock implementation of AnalysisResultRepository
+// MockAnalysisRepo is a mock implementation of AnalysisResultRepository.
 type MockAnalysisRepo struct {
 	mock.Mock
 }
 
-func (m *MockAnalysisRepo) Create(ar *model.AnalysisResult) error {
-	args := m.Called(ar)
+func (m *MockAnalysisRepo) Create(ar *model.AnalysisResult, links []model.Link) error {
+	args := m.Called(ar, links)
 	return args.Error(0)
 }
 
@@ -48,11 +48,12 @@ func TestAnalysisService_Record(t *testing.T) {
 	}
 
 	t.Run("Success", func(t *testing.T) {
-		// Setup expectations
-		mockRepo.On("Create", testResult).Return(nil).Once()
+		// Setup expectations: pass an empty links slice.
+		emptyLinks := []model.Link{}
+		mockRepo.On("Create", testResult, emptyLinks).Return(nil).Once()
 
 		// Execute
-		err := svc.Record(testResult)
+		err := svc.Record(testResult, emptyLinks)
 
 		// Verify
 		assert.NoError(t, err)
@@ -60,12 +61,12 @@ func TestAnalysisService_Record(t *testing.T) {
 	})
 
 	t.Run("Repository Error", func(t *testing.T) {
-		// Setup expectations - simulate repository error
+		emptyLinks := []model.Link{}
 		expectedErr := errors.New("database error")
-		mockRepo.On("Create", testResult).Return(expectedErr).Once()
+		mockRepo.On("Create", testResult, emptyLinks).Return(expectedErr).Once()
 
 		// Execute
-		err := svc.Record(testResult)
+		err := svc.Record(testResult, emptyLinks)
 
 		// Verify
 		assert.Error(t, err)

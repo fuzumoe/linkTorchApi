@@ -1,6 +1,7 @@
 package model
 
 import (
+	"net/url"
 	"time"
 
 	"gorm.io/gorm"
@@ -11,6 +12,7 @@ const (
 	StatusRunning = "running"
 	StatusDone    = "done"
 	StatusError   = "error"
+	StatusStopped = "stopped"
 )
 
 // URL represents a URL to be analyzed and its processing status.
@@ -74,4 +76,12 @@ func URLFromCreateInput(input *CreateURLInput) *URL {
 type UpdateURLInput struct {
 	OriginalURL string `json:"original_url" binding:"omitempty,url"`
 	Status      string `json:"status"        binding:"omitempty,oneof=queued running done error"`
+}
+
+func (u *URL) URL() *url.URL {
+	parsed, err := url.Parse(u.OriginalURL)
+	if err != nil {
+		return nil
+	}
+	return parsed
 }

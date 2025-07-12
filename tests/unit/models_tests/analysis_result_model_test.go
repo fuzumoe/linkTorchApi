@@ -14,19 +14,22 @@ func TestAnalysisResult(t *testing.T) {
 		createdAt := time.Date(2025, 7, 9, 12, 0, 0, 0, time.UTC)
 		updatedAt := createdAt.Add(time.Hour)
 		result := &model.AnalysisResult{
-			ID:           1,
-			URLID:        2,
-			HTMLVersion:  "HTML5",
-			Title:        "Test Page",
-			H1Count:      1,
-			H2Count:      2,
-			H3Count:      3,
-			H4Count:      4,
-			H5Count:      5,
-			H6Count:      6,
-			HasLoginForm: true,
-			CreatedAt:    createdAt,
-			UpdatedAt:    updatedAt,
+			ID:                1,
+			URLID:             2,
+			HTMLVersion:       "HTML5",
+			Title:             "Test Page",
+			H1Count:           1,
+			H2Count:           2,
+			H3Count:           3,
+			H4Count:           4,
+			H5Count:           5,
+			H6Count:           6,
+			HasLoginForm:      true,
+			InternalLinkCount: 10,
+			ExternalLinkCount: 20,
+			BrokenLinkCount:   5,
+			CreatedAt:         createdAt,
+			UpdatedAt:         updatedAt,
 		}
 
 		dto := result.ToDTO()
@@ -44,6 +47,7 @@ func TestAnalysisResult(t *testing.T) {
 		assert.Equal(t, result.HasLoginForm, dto.HasLoginForm, "HasLoginForm should match")
 		assert.WithinDuration(t, result.CreatedAt, dto.CreatedAt, time.Second, "CreatedAt should match")
 		assert.WithinDuration(t, result.UpdatedAt, dto.UpdatedAt, time.Second, "UpdatedAt should match")
+		// Note: The DTO does not include link count fields.
 	})
 
 	t.Run("From Create Input", func(t *testing.T) {
@@ -72,6 +76,10 @@ func TestAnalysisResult(t *testing.T) {
 		assert.Equal(t, input.H5Count, result.H5Count, "H5Count should match")
 		assert.Equal(t, input.H6Count, result.H6Count, "H6Count should match")
 		assert.Equal(t, input.HasLoginForm, result.HasLoginForm, "HasLoginForm should match")
+		// New fields should default to zero
+		assert.Equal(t, 0, result.InternalLinkCount, "InternalLinkCount should default to zero")
+		assert.Equal(t, 0, result.ExternalLinkCount, "ExternalLinkCount should default to zero")
+		assert.Equal(t, 0, result.BrokenLinkCount, "BrokenLinkCount should default to zero")
 		assert.NotZero(t, result.CreatedAt, "CreatedAt should be set")
 		assert.NotZero(t, result.UpdatedAt, "UpdatedAt should be set")
 	})

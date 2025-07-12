@@ -8,20 +8,23 @@ import (
 
 // AnalysisResult holds parsed metadata for a given URL.
 type AnalysisResult struct {
-	ID           uint           `gorm:"primaryKey;autoIncrement" json:"id"`
-	URLID        uint           `gorm:"not null;index" json:"url_id"`
-	HTMLVersion  string         `gorm:"size:50;not null" json:"html_version"`
-	Title        string         `gorm:"type:text" json:"title"`
-	H1Count      int            `json:"h1_count"`
-	H2Count      int            `json:"h2_count"`
-	H3Count      int            `json:"h3_count"`
-	H4Count      int            `json:"h4_count"`
-	H5Count      int            `json:"h5_count"`
-	H6Count      int            `json:"h6_count"`
-	HasLoginForm bool           `json:"has_login_form"`
-	CreatedAt    time.Time      `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt    time.Time      `gorm:"autoUpdateTime" json:"updated_at"`
-	DeletedAt    gorm.DeletedAt `gorm:"index" json:"-"`
+	ID                uint           `gorm:"primaryKey;autoIncrement" json:"id"`
+	URLID             uint           `gorm:"not null;index" json:"url_id"`
+	HTMLVersion       string         `gorm:"size:50;not null" json:"html_version"`
+	Title             string         `gorm:"type:text" json:"title"`
+	H1Count           int            `json:"h1_count"`
+	H2Count           int            `json:"h2_count"`
+	H3Count           int            `json:"h3_count"`
+	H4Count           int            `json:"h4_count"`
+	H5Count           int            `json:"h5_count"`
+	H6Count           int            `json:"h6_count"`
+	HasLoginForm      bool           `json:"has_login_form"`
+	InternalLinkCount int            `json:"internal_link_count"`
+	ExternalLinkCount int            `json:"external_link_count"`
+	BrokenLinkCount   int            `json:"broken_link_count"`
+	CreatedAt         time.Time      `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt         time.Time      `gorm:"autoUpdateTime" json:"updated_at"`
+	DeletedAt         gorm.DeletedAt `gorm:"index" json:"-"`
 }
 
 // AnalysisResultDTO is used for sending analysis results in responses.

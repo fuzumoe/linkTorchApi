@@ -15,8 +15,6 @@ import (
 	"github.com/fuzumoe/urlinsight-backend/internal/service"
 )
 
-// -- Mocks --
-
 type MockUserRepository struct {
 	mock.Mock
 }

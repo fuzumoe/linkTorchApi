@@ -56,7 +56,8 @@ func TestAnalysisResultRepo_Integration(t *testing.T) {
 	defaultPage := repository.Pagination{Page: 1, PageSize: 10}
 
 	t.Run("Create", func(t *testing.T) {
-		err := analysisRepo.Create(testAnalysis)
+		// Pass nil for links if none exist.
+		err := analysisRepo.Create(testAnalysis, nil)
 		require.NoError(t, err, "Should create analysis result without error")
 		assert.NotZero(t, testAnalysis.ID, "Analysis ID should be set after creation")
 		assert.False(t, testAnalysis.CreatedAt.IsZero(), "CreatedAt should be set")
@@ -77,7 +78,7 @@ func TestAnalysisResultRepo_Integration(t *testing.T) {
 			H6Count:      0,
 			HasLoginForm: false,
 		}
-		err := analysisRepo.Create(secondAnalysis)
+		err := analysisRepo.Create(secondAnalysis, nil)
 		require.NoError(t, err, "Should create second analysis")
 
 		// Create another URL and analysis for it.
@@ -101,7 +102,7 @@ func TestAnalysisResultRepo_Integration(t *testing.T) {
 			H6Count:      0,
 			HasLoginForm: true,
 		}
-		err = analysisRepo.Create(otherURLAnalysis)
+		err = analysisRepo.Create(otherURLAnalysis, nil)
 		require.NoError(t, err, "Should create analysis for other URL")
 
 		// Test listing analyses for our test URL.

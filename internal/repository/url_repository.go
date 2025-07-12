@@ -15,6 +15,11 @@ type URLRepository interface {
 	ListByUser(userID uint, p Pagination) ([]model.URL, error)
 	Update(u *model.URL) error
 	Delete(id uint) error
+
+	UpdateStatus(id uint, status string) error
+	SaveResults(id uint, res *model.AnalysisResult, links []model.Link) error
+
+	Results(id uint) (*model.URL, error)
 }
 
 type urlRepo struct {
@@ -61,4 +66,33 @@ func (r *urlRepo) Delete(id uint) error {
 		return errors.New("url not found")
 	}
 	return res.Error
+}
+
+func (r *urlRepo) UpdateStatus(id uint, status string) error {
+	return r.db.
+		Model(&model.URL{}).
+		Where("id = ?", id).
+		Update("status", status).Error
+}
+
+func (r *urlRepo) SaveResults(id uint, res *model.AnalysisResult, links []model.Link) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		res.URLID = id
+		if err := tx.Create(res).Error; err != nil {
+			return err
+		}
+		for i := range links {
+			links[i].URLID = id
+		}
+		return tx.CreateInBatches(&links, 500).Error
+	})
+}
+
+func (r *urlRepo) Results(id uint) (*model.URL, error) {
+	var u model.URL
+	err := r.db.
+		Preload("AnalysisResults").
+		Preload("Links").
+		First(&u, id).Error
+	return &u, err
 }

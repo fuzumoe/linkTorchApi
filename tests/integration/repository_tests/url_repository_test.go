@@ -16,11 +16,11 @@ func TestURLRepo_Integration(t *testing.T) {
 	// Get a clean database state.
 	db := utils.SetupTest(t)
 
-	// Create repositories
+	// Create repositories.
 	urlRepo := repository.NewURLRepo(db)
 	userRepo := repository.NewUserRepo(db)
 
-	// First create a test user.
+	// Create a test user.
 	testUser := &model.User{
 		Username: "urlowner",
 		Email:    "urlowner@example.com",
@@ -76,8 +76,6 @@ func TestURLRepo_Integration(t *testing.T) {
 		// Now test FindByID with preloading.
 		foundURL, err := urlRepo.FindByID(testURL.ID)
 		require.NoError(t, err, "Should find URL by ID")
-
-		// Verify basic URL fields.
 		assert.Equal(t, testURL.ID, foundURL.ID)
 		assert.Equal(t, testURL.UserID, foundURL.UserID)
 		assert.Equal(t, testURL.OriginalURL, foundURL.OriginalURL)
@@ -118,7 +116,6 @@ func TestURLRepo_Integration(t *testing.T) {
 		}
 		err = userRepo.Create(anotherUser)
 		require.NoError(t, err, "Should create another user")
-
 		otherUserURL := &model.URL{
 			UserID:      anotherUser.ID,
 			OriginalURL: "https://other-user-site.com",
@@ -127,17 +124,15 @@ func TestURLRepo_Integration(t *testing.T) {
 		err = urlRepo.Create(otherUserURL)
 		require.NoError(t, err, "Should create URL for other user")
 
-		// Test listing URLs for our test user with default pagination.
+		// Test listing URLs for our test user.
 		urls, err := urlRepo.ListByUser(testUser.ID, defaultPage)
 		require.NoError(t, err, "Should list URLs by user")
 		assert.Len(t, urls, 2, "Should have 2 URLs for test user")
 
-		// Verify the returned URLs belong to our test user.
 		for _, u := range urls {
 			assert.Equal(t, testUser.ID, u.UserID, "URL should belong to test user")
 		}
 
-		// Test listing for the other user with default pagination.
 		otherUserURLs, err := urlRepo.ListByUser(anotherUser.ID, defaultPage)
 		require.NoError(t, err, "Should list URLs for other user")
 		assert.Len(t, otherUserURLs, 1, "Should have 1 URL for other user")
@@ -148,25 +143,71 @@ func TestURLRepo_Integration(t *testing.T) {
 		// Change URL properties.
 		testURL.Status = "done"
 		testURL.OriginalURL = "https://updated-example.com"
-
 		err := urlRepo.Update(testURL)
 		require.NoError(t, err, "Should update URL without error")
-
-		// Verify the changes were saved.
 		updatedURL, err := urlRepo.FindByID(testURL.ID)
 		require.NoError(t, err, "Should find updated URL")
 		assert.Equal(t, "done", updatedURL.Status, "Status should be updated to 'done'")
 		assert.Equal(t, "https://updated-example.com", updatedURL.OriginalURL, "OriginalURL should be updated")
 	})
 
+	t.Run("UpdateStatus", func(t *testing.T) {
+		// Use a valid status value that fits in the DB column.
+		newStatus := "done"
+		err := urlRepo.UpdateStatus(testURL.ID, newStatus)
+		require.NoError(t, err, "Should update status without error")
+		statusURL, err := urlRepo.FindByID(testURL.ID)
+		require.NoError(t, err, "Should find URL after status update")
+		assert.Equal(t, newStatus, statusURL.Status, "Status should be updated")
+	})
+
+	t.Run("SaveResults", func(t *testing.T) {
+		// Create a new URL so existing analysis results don't interfere.
+		newURL := &model.URL{
+			UserID:      testUser.ID,
+			OriginalURL: "https://save-results.com",
+			Status:      "queued",
+		}
+		err := urlRepo.Create(newURL)
+		require.NoError(t, err, "Should create URL for SaveResults test")
+
+		analysisRes := &model.AnalysisResult{
+			HTMLVersion:  "HTML5",
+			Title:        "Analysis Title",
+			H1Count:      2,
+			H2Count:      3,
+			H3Count:      0,
+			H4Count:      0,
+			H5Count:      0,
+			H6Count:      0,
+			HasLoginForm: true,
+		}
+		links := []model.Link{
+			{Href: "https://example.com/link1"},
+			{Href: "https://example.com/link2"},
+		}
+
+		err = urlRepo.SaveResults(newURL.ID, analysisRes, links)
+		require.NoError(t, err, "Should save analysis results without error")
+
+		// Retrieve the URL with preloaded relations.
+		resultURL, err := urlRepo.Results(newURL.ID)
+		require.NoError(t, err, "Should retrieve URL via Results")
+		require.NotEmpty(t, resultURL.AnalysisResults, "AnalysisResults should not be empty")
+		require.NotEmpty(t, resultURL.Links, "Links should not be empty")
+		// Verify analysis result details.
+		assert.Equal(t, "Analysis Title", resultURL.AnalysisResults[0].Title)
+		assert.Equal(t, "HTML5", resultURL.AnalysisResults[0].HTMLVersion)
+		// Verify links order and Href.
+		assert.Equal(t, "https://example.com/link1", resultURL.Links[0].Href)
+		assert.Equal(t, "https://example.com/link2", resultURL.Links[1].Href)
+	})
+
 	t.Run("Delete", func(t *testing.T) {
 		err := urlRepo.Delete(testURL.ID)
 		require.NoError(t, err, "Should delete URL without error")
-
-		// Verify URL was deleted.
 		_, err = urlRepo.FindByID(testURL.ID)
 		assert.ErrorIs(t, err, gorm.ErrRecordNotFound, "Deleted URL should not be found")
-
 		// Test deleting non-existent URL.
 		err = urlRepo.Delete(9999)
 		assert.EqualError(t, err, "url not found", "Should return error when deleting non-existent URL")

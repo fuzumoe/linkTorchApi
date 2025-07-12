@@ -1,157 +1,166 @@
 package repository_test
 
 import (
-	"regexp"
+	"fmt"
 	"testing"
-	"time"
 
-	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gorm.io/driver/mysql"
-	"gorm.io/gorm"
 
 	"github.com/fuzumoe/urlinsight-backend/internal/model"
 	"github.com/fuzumoe/urlinsight-backend/internal/repository"
+	"github.com/fuzumoe/urlinsight-backend/tests/utils"
 )
 
-// setupLinkMockDB initializes a new GORM DB instance backed by sqlmock.
-func setupLinkMockDB(t *testing.T) (*gorm.DB, sqlmock.Sqlmock) {
-	db, mock, err := sqlmock.New()
-	require.NoError(t, err)
+func TestLinkRepo_Integration(t *testing.T) {
+	// Get a clean database state.
+	db := utils.SetupTest(t)
 
-	gormDB, err := gorm.Open(mysql.New(mysql.Config{
-		Conn:                      db,
-		SkipInitializeWithVersion: true,
-	}), &gorm.Config{})
-	require.NoError(t, err)
+	// Create repositories.
+	linkRepo := repository.NewLinkRepo(db)
+	urlRepo := repository.NewURLRepo(db)
+	userRepo := repository.NewUserRepo(db)
 
-	return gormDB, mock
-}
+	// Define a default pagination (Page 1, PageSize 10).
+	defaultPage := repository.Pagination{Page: 1, PageSize: 10}
 
-func TestLinkRepo_Create(t *testing.T) {
-	db, mock := setupLinkMockDB(t)
-	repo := repository.NewLinkRepo(db)
+	// First create a test user and URL.
+	testUser := &model.User{
+		Username: "linkowner",
+		Email:    "linkowner@example.com",
+		Password: "password123",
+	}
+	err := userRepo.Create(testUser)
+	require.NoError(t, err, "Should create user without error")
+	require.NotZero(t, testUser.ID, "User ID should be set")
 
-	// Prepare a test Link with all fields.
+	testURL := &model.URL{
+		UserID:      testUser.ID,
+		OriginalURL: "https://example.com",
+		Status:      "queued",
+	}
+	err = urlRepo.Create(testURL)
+	require.NoError(t, err, "Should create URL without error")
+	require.NotZero(t, testURL.ID, "URL ID should be set")
+
+	// Test Link data.
 	testLink := &model.Link{
-		URLID:      10,
-		Href:       "https://example.com",
-		IsExternal: false,
-		StatusCode: 0,
+		URLID:      testURL.ID,
+		Href:       "https://linked-site.com",
+		IsExternal: true,
+		StatusCode: 200,
 	}
 
-	mock.ExpectBegin()
-	// Expect INSERT statement with all columns.
-	exec := mock.ExpectExec(regexp.QuoteMeta(
-		"INSERT INTO `links` (`url_id`,`href`,`is_external`,`status_code`,`created_at`,`updated_at`,`deleted_at`) VALUES (?,?,?,?,?,?,?)",
-	))
-	exec.WithArgs(
-		testLink.URLID,
-		testLink.Href,
-		testLink.IsExternal,
-		testLink.StatusCode,
-		sqlmock.AnyArg(), // created_at
-		sqlmock.AnyArg(), // updated_at
-		sqlmock.AnyArg(), // deleted_at, likely nil
-	).WillReturnResult(sqlmock.NewResult(1, 1))
-	mock.ExpectCommit()
+	t.Run("Create", func(t *testing.T) {
+		err := linkRepo.Create(testLink)
+		require.NoError(t, err, "Should create Link without error")
+		assert.NotZero(t, testLink.ID, "Link ID should be set after creation")
+		assert.False(t, testLink.CreatedAt.IsZero(), "CreatedAt should be set")
+		assert.False(t, testLink.UpdatedAt.IsZero(), "UpdatedAt should be set")
+	})
 
-	err := repo.Create(testLink)
-	assert.NoError(t, err)
-	// Check that GORM assigned ID 1.
-	assert.Equal(t, uint(1), testLink.ID)
-	assert.NoError(t, mock.ExpectationsWereMet())
-}
+	t.Run("ListByURL", func(t *testing.T) {
+		// Create another link for the same URL.
+		secondLink := &model.Link{
+			URLID:      testURL.ID,
+			Href:       "https://second-link.com",
+			IsExternal: false,
+			StatusCode: 301,
+		}
+		err := linkRepo.Create(secondLink)
+		require.NoError(t, err, "Should create second Link")
 
-func TestLinkRepo_ListByURL(t *testing.T) {
-	db, mock := setupLinkMockDB(t)
-	repo := repository.NewLinkRepo(db)
-	urlID := uint(10)
+		// Create another URL and a link for it.
+		anotherURL := &model.URL{
+			UserID:      testUser.ID,
+			OriginalURL: "https://another-example.com",
+			Status:      "queued",
+		}
+		err = urlRepo.Create(anotherURL)
+		require.NoError(t, err, "Should create another URL")
 
-	mock.ExpectQuery(regexp.QuoteMeta(
-		"SELECT * FROM `links` WHERE url_id = ? AND `links`.`deleted_at` IS NULL LIMIT ?",
-	)).WithArgs(urlID, 10).WillReturnRows(
-		sqlmock.NewRows([]string{"id", "url_id", "href", "is_external", "status_code", "created_at", "updated_at", "deleted_at"}).
-			AddRow(1, urlID, "https://link1.com", false, 200,
-				time.Date(2025, 7, 10, 12, 0, 0, 0, time.UTC),
-				time.Date(2025, 7, 10, 12, 0, 0, 0, time.UTC), nil).
-			AddRow(2, urlID, "https://link2.com", true, 404,
-				time.Date(2025, 7, 10, 13, 0, 0, 0, time.UTC),
-				time.Date(2025, 7, 10, 13, 0, 0, 0, time.UTC), nil),
-	)
+		otherURLLink := &model.Link{
+			URLID:      anotherURL.ID,
+			Href:       "https://other-url-link.com",
+			IsExternal: true,
+			StatusCode: 200,
+		}
+		err = linkRepo.Create(otherURLLink)
+		require.NoError(t, err, "Should create Link for other URL")
 
-	links, err := repo.ListByURL(urlID, repository.Pagination{Page: 1, PageSize: 10})
-	assert.NoError(t, err)
-	assert.Len(t, links, 2)
-	// Verify returned record.
-	assert.Equal(t, "https://link1.com", links[0].Href)
-	assert.Equal(t, false, links[0].IsExternal)
-	assert.Equal(t, 200, links[0].StatusCode)
-	assert.NoError(t, mock.ExpectationsWereMet())
-}
+		// Test listing links for our test URL.
+		links, err := linkRepo.ListByURL(testURL.ID, defaultPage)
+		require.NoError(t, err, "Should list Links by URL")
+		// Expect at least 2 links for test URL.
+		assert.GreaterOrEqual(t, len(links), 2, "Should have at least 2 Links for test URL")
+		for _, l := range links {
+			assert.Equal(t, testURL.ID, l.URLID, "Link should belong to test URL")
+		}
 
-func TestLinkRepo_Update(t *testing.T) {
-	db, mock := setupLinkMockDB(t)
-	repo := repository.NewLinkRepo(db)
-	testLink := &model.Link{
-		ID:         3,
-		URLID:      10,
-		Href:       "https://old.com",
-		IsExternal: false,
-		StatusCode: 0,
-		CreatedAt:  time.Now(),
-		UpdatedAt:  time.Now(),
-	}
-	// Update the Href and mark as external.
-	testLink.Href = "https://new.com"
-	testLink.IsExternal = true
+		// Test listing for the other URL.
+		otherURLLinks, err := linkRepo.ListByURL(anotherURL.ID, defaultPage)
+		require.NoError(t, err, "Should list Links for other URL")
+		assert.Equal(t, 1, len(otherURLLinks), "Should have 1 Link for other URL")
+		assert.Equal(t, anotherURL.ID, otherURLLinks[0].URLID, "Link should belong to other URL")
+	})
 
-	mock.ExpectBegin()
-	mock.ExpectExec(regexp.QuoteMeta(
-		"UPDATE `links` SET `url_id`=?,`href`=?,`is_external`=?,`status_code`=?,`created_at`=?,`updated_at`=?,`deleted_at`=? WHERE `links`.`deleted_at` IS NULL AND `id` = ?",
-	)).WithArgs(
-		testLink.URLID, testLink.Href, testLink.IsExternal, testLink.StatusCode,
-		testLink.CreatedAt, sqlmock.AnyArg(), nil, testLink.ID,
-	).WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectCommit()
+	t.Run("Update", func(t *testing.T) {
+		// Change Link properties.
+		testLink.Href = "https://updated-link.com"
+		testLink.IsExternal = false
+		testLink.StatusCode = 302
 
-	err := repo.Update(testLink)
-	assert.NoError(t, err)
-	assert.NoError(t, mock.ExpectationsWereMet())
-}
+		err := linkRepo.Update(testLink)
+		require.NoError(t, err, "Should update Link without error")
 
-func TestLinkRepo_Delete_Success(t *testing.T) {
-	db, mock := setupLinkMockDB(t)
-	repo := repository.NewLinkRepo(db)
+		// Verify the changes were saved by fetching updated links for the URL.
+		updatedLinks, err := linkRepo.ListByURL(testURL.ID, defaultPage)
+		require.NoError(t, err, "Should list updated Links")
+		var found bool
+		for _, link := range updatedLinks {
+			if link.ID == testLink.ID {
+				assert.Equal(t, "https://updated-link.com", link.Href, "Href should be updated")
+				assert.False(t, link.IsExternal, "IsExternal should be updated to false")
+				assert.Equal(t, 302, link.StatusCode, "StatusCode should be updated")
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "Updated link should be found in the list")
+	})
 
-	// Create a dummy link to delete.
-	testLink := &model.Link{ID: 4}
-	mock.ExpectBegin()
-	mock.ExpectExec(regexp.QuoteMeta(
-		"UPDATE `links` SET `deleted_at`=? WHERE `links`.`id` = ? AND `links`.`deleted_at` IS NULL",
-	)).WithArgs(sqlmock.AnyArg(), testLink.ID).WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectCommit()
+	t.Run("Delete", func(t *testing.T) {
+		err := linkRepo.Delete(testLink)
+		require.NoError(t, err, "Should delete Link without error")
 
-	err := repo.Delete(testLink)
-	assert.NoError(t, err)
-	assert.NoError(t, mock.ExpectationsWereMet())
-}
+		// Verify the Link was deleted by listing remaining links.
+		remainingLinks, err := linkRepo.ListByURL(testURL.ID, defaultPage)
+		require.NoError(t, err, "Should list remaining links")
+		for _, link := range remainingLinks {
+			assert.NotEqual(t, testLink.ID, link.ID, "Deleted link should not be in the list")
+		}
+	})
 
-func TestLinkRepo_Delete_NotFound(t *testing.T) {
-	db, mock := setupLinkMockDB(t)
-	repo := repository.NewLinkRepo(db)
+	t.Run("Pagination", func(t *testing.T) {
+		// Create extra links to test pagination behavior.
+		for i := 0; i < 5; i++ {
+			newLink := &model.Link{
+				URLID:      testURL.ID,
+				Href:       fmt.Sprintf("https://paginated-link.com/%c", 'A'+i),
+				IsExternal: i%2 == 0,
+				StatusCode: 200 + i,
+			}
+			err := linkRepo.Create(newLink)
+			require.NoError(t, err, "Should create paginated link")
+		}
 
-	// Dummy link for non-existent record.
-	testLink := &model.Link{ID: 999}
-	mock.ExpectBegin()
-	mock.ExpectExec(regexp.QuoteMeta(
-		"UPDATE `links` SET `deleted_at`=? WHERE `links`.`id` = ? AND `links`.`deleted_at` IS NULL",
-	)).WithArgs(sqlmock.AnyArg(), testLink.ID).WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectCommit()
+		// Request page 2 with page size 3.
+		p2 := repository.Pagination{Page: 2, PageSize: 3}
+		pagedLinks, err := linkRepo.ListByURL(testURL.ID, p2)
+		require.NoError(t, err, "Should list paginated links")
+		// We expect at most 3 results in page 2.
+		assert.LessOrEqual(t, len(pagedLinks), 3, "Paginated result should have at most 3 links")
+	})
 
-	err := repo.Delete(testLink)
-	// Expect error "link not found" when no rows are affected.
-	assert.EqualError(t, err, "link not found")
-	assert.NoError(t, mock.ExpectationsWereMet())
+	utils.CleanTestData(t)
 }
