@@ -7,13 +7,13 @@ import (
 
 	"github.com/fuzumoe/urlinsight-backend/internal/model"
 	"github.com/fuzumoe/urlinsight-backend/internal/repository"
-	"github.com/fuzumoe/urlinsight-backend/tests/integration"
+	"github.com/fuzumoe/urlinsight-backend/tests/utils"
 )
 
 func TestMigrate_MySQLIntegration(t *testing.T) {
 
 	// Get a clean database state.
-	db := integration.SetupTest(t)
+	db := utils.SetupTest(t)
 
 	t.Run("Migrate", func(t *testing.T) {
 		// Test: Run migrations.
@@ -32,6 +32,6 @@ func TestMigrate_MySQLIntegration(t *testing.T) {
 		assert.NoError(t, err, "migrations should be idempotent")
 	})
 
-	integration.CleanTestData(t)
+	utils.CleanTestData(t)
 
 }

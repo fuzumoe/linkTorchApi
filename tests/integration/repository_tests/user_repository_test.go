@@ -9,13 +9,13 @@ import (
 
 	"github.com/fuzumoe/urlinsight-backend/internal/model"
 	"github.com/fuzumoe/urlinsight-backend/internal/repository"
-	"github.com/fuzumoe/urlinsight-backend/tests/integration"
+	"github.com/fuzumoe/urlinsight-backend/tests/utils"
 )
 
 func TestUserRepo_CRUD_Integration(t *testing.T) {
 
 	// Get a clean database state.
-	db := integration.SetupTest(t)
+	db := utils.SetupTest(t)
 
 	// Create the user repository.
 	userRepo := repository.NewUserRepo(db)
@@ -104,5 +104,5 @@ func TestUserRepo_CRUD_Integration(t *testing.T) {
 		assert.EqualError(t, err, "user not found", "Should return error when deleting non-existent user")
 	})
 
-	integration.CleanTestData(t)
+	utils.CleanTestData(t)
 }

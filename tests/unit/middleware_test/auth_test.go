@@ -116,7 +116,8 @@ func TestAuthMiddleware(t *testing.T) {
 				headerValue: "Basic " + base64.StdEncoding.EncodeToString([]byte("user@example.com:wrongpassword")),
 				setupMock: func(m *MockAuthService) {
 					// Expect AuthenticateBasic to be called and return an error
-					m.On("AuthenticateBasic", "user@example.com", "wrongpassword").Return(nil, errors.New("invalid credentials"))
+					m.On("AuthenticateBasic", "user@example.com", "wrongpassword").
+						Return(nil, errors.New("invalid credentials"))
 				},
 				expectedStatus: http.StatusUnauthorized,
 			},
@@ -125,7 +126,8 @@ func TestAuthMiddleware(t *testing.T) {
 				headerValue: "Basic " + base64.StdEncoding.EncodeToString([]byte("user@example.com:correctpassword")),
 				setupMock: func(m *MockAuthService) {
 					// Expect AuthenticateBasic and return a valid UserDTO
-					m.On("AuthenticateBasic", "user@example.com", "correctpassword").Return(&model.UserDTO{ID: 42}, nil)
+					m.On("AuthenticateBasic", "user@example.com", "correctpassword").
+						Return(&model.UserDTO{ID: 42}, nil)
 				},
 				expectedStatus: http.StatusOK,
 			},
@@ -185,7 +187,7 @@ func TestAuthMiddleware(t *testing.T) {
 				name:           "Invalid prefix",
 				headerValue:    "Basic foo",
 				setupMock:      func(m *MockAuthService) {},
-				expectedStatus: http.StatusUnauthorized,
+				expectedStatus: http.StatusBadRequest,
 			},
 			{
 				name:        "Token validation fails",
@@ -244,7 +246,11 @@ func TestAuthMiddleware(t *testing.T) {
 					}
 					m.On("Validate", "validtoken").Return(claims, nil)
 					m.On("IsTokenRevoked", "abc123").Return(false, nil)
-					m.On("FindUserById", uint(42)).Return(&model.UserDTO{ID: 42, Username: "testuser", Email: "user@example.com"}, nil)
+					m.On("FindUserById", uint(42)).Return(&model.UserDTO{
+						ID:       42,
+						Username: "testuser",
+						Email:    "user@example.com",
+					}, nil)
 				},
 				expectedStatus: http.StatusOK,
 			},

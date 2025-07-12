@@ -8,19 +8,22 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/fuzumoe/urlinsight-backend/internal/repository"
-	"github.com/fuzumoe/urlinsight-backend/tests/integration"
+	"github.com/fuzumoe/urlinsight-backend/tests/utils"
 )
 
 // TestNewDB_Integration tests the NewDB function with a real MySQL database connection.
 func TestNewDB_Integration(t *testing.T) {
 	// fallback DSN if env var isn't set.
-	dsn := os.Getenv("TEST_MYSQL_DSN")
-	if dsn == "" {
-		dsn = "urlinsight_user:secret@tcp(localhost:3309)/urlinsight_test?parseTime=true"
-		t.Log("TEST_MYSQL_DSN not set, using fallback DSN:", dsn)
+	testDatabase := os.Getenv("TEST_DATABASE")
+	dsn := ""
+	if testDatabase == "" {
+		dsn = "urlinsight_user:secret@tcp(localhost:3309)/urlinsight_user?parseTime=true"
+	} else {
+
+		dsn = "urlinsight_user:secret@tcp(localhost:3309)/" + testDatabase + "?parseTime=true"
 	}
 
-	if err := integration.InitTestSuite(); err != nil {
+	if err := utils.InitTestSuite(); err != nil {
 		println("Failed to setup test suite:", err.Error())
 		os.Exit(1)
 	}
@@ -42,6 +45,6 @@ func TestNewDB_Integration(t *testing.T) {
 		assert.Greater(t, stats.OpenConnections, 0, "Should have at least one open connection")
 	})
 
-	integration.CleanTestData(t)
+	utils.CleanTestData(t)
 
 }

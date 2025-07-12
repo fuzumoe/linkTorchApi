@@ -8,12 +8,12 @@ import (
 
 	"github.com/fuzumoe/urlinsight-backend/internal/model"
 	"github.com/fuzumoe/urlinsight-backend/internal/repository"
-	"github.com/fuzumoe/urlinsight-backend/tests/integration"
+	"github.com/fuzumoe/urlinsight-backend/tests/utils"
 )
 
 func TestAnalysisResultRepo_Integration(t *testing.T) {
 	// Get a clean database state.
-	db := integration.SetupTest(t)
+	db := utils.SetupTest(t)
 
 	// Create repositories.
 	analysisRepo := repository.NewAnalysisResultRepo(db)
@@ -168,5 +168,5 @@ func TestAnalysisResultRepo_Integration(t *testing.T) {
 		assert.True(t, foundSecond, "Should find second analysis in preloaded data")
 	})
 
-	integration.CleanTestData(t)
+	utils.CleanTestData(t)
 }

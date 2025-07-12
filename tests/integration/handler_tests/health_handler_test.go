@@ -11,17 +11,17 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	// Import from the actual folder "handler" but alias it as "handler"
-	handler "github.com/fuzumoe/urlinsight-backend/internal/handler"
+	"github.com/fuzumoe/urlinsight-backend/internal/handler"
 	"github.com/fuzumoe/urlinsight-backend/internal/service"
-	"github.com/fuzumoe/urlinsight-backend/tests/integration"
+	"github.com/fuzumoe/urlinsight-backend/tests/utils"
 )
 
 func TestHealthHandlerIntegration(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Use the project test setup.
-	db := integration.SetupTest(t)
-	defer integration.CleanTestData(t)
+	db := utils.SetupTest(t)
+	defer utils.CleanTestData(t)
 
 	// Create a real HealthService using the live database.
 	healthService := service.NewHealthService(db, "IntegrationHealthTest")

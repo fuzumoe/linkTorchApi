@@ -15,22 +15,24 @@ import (
 	"github.com/fuzumoe/urlinsight-backend/internal/handler"
 	"github.com/fuzumoe/urlinsight-backend/internal/repository"
 	"github.com/fuzumoe/urlinsight-backend/internal/service"
-	"github.com/fuzumoe/urlinsight-backend/tests/integration"
+	"github.com/fuzumoe/urlinsight-backend/tests/utils"
 )
 
-func TestAuthHandlerIntegration(t *testing.T) {
+func TestAuthHandlerUtils(t *testing.T) {
 	// Set up Gin in test mode.
 	gin.SetMode(gin.TestMode)
-	// Setup the integration test database.
-	db := integration.SetupTest(t)
-	defer integration.CleanTestData(t)
+	// Setup the utils test database.
+	db := utils.SetupTest(t)
+	defer utils.CleanTestData(t)
 
 	// Create real repositories.
 	userRepo := repository.NewUserRepo(db)
 	tokenRepo := repository.NewTokenRepo(db)
+
 	// Create real services.
 	authSvc := service.NewAuthService(userRepo, tokenRepo, "test-secret", time.Hour)
 	userSvc := service.NewUserService(userRepo)
+
 	// Create the auth handler.
 	authHandler := handler.NewAuthHandler(authSvc, userSvc)
 
@@ -111,9 +113,9 @@ func TestAuthHandlerIntegration(t *testing.T) {
 	t.Run("Register and Login JWT", func(t *testing.T) {
 		// 1. Register a new user
 		regPayload := map[string]string{
-			"email":    "integration@example.com",
+			"email":    "utils@example.com",
 			"password": "integrate",
-			"username": "integrationuser",
+			"username": "utilsuser",
 		}
 		regBytes, _ := json.Marshal(regPayload)
 		reqReg := httptest.NewRequest(http.MethodPost, "/register", bytes.NewBuffer(regBytes))
@@ -125,7 +127,7 @@ func TestAuthHandlerIntegration(t *testing.T) {
 
 		// 2. Login with the registered user
 		loginPayload := map[string]string{
-			"email":    "integration@example.com",
+			"email":    "utils@example.com",
 			"password": "integrate",
 		}
 		loginBytes, _ := json.Marshal(loginPayload)
@@ -146,7 +148,7 @@ func TestAuthHandlerIntegration(t *testing.T) {
 
 	t.Run("Login Basic", func(t *testing.T) {
 		// For LoginBasic, the client must send a Basic auth header.
-		creds := "integration@example.com:integrate"
+		creds := "utils@example.com:integrate"
 		encodedCreds := base64.StdEncoding.EncodeToString([]byte(creds))
 		req := httptest.NewRequest(http.MethodPost, "/login/basic", nil)
 		req.Header.Set("Authorization", "Basic "+encodedCreds)
@@ -166,7 +168,7 @@ func TestAuthHandlerIntegration(t *testing.T) {
 	t.Run("Login JWT", func(t *testing.T) {
 		// Test the /login/jwt endpoint using the registered user.
 		loginPayload := map[string]string{
-			"email":    "integration@example.com",
+			"email":    "utils@example.com",
 			"password": "integrate",
 		}
 		loginBytes, _ := json.Marshal(loginPayload)
@@ -188,7 +190,7 @@ func TestAuthHandlerIntegration(t *testing.T) {
 	t.Run("Logout", func(t *testing.T) {
 		// Log in the user to obtain a token using /login/jwt.
 		loginPayload := map[string]string{
-			"email":    "integration@example.com",
+			"email":    "utils@example.com",
 			"password": "integrate",
 		}
 		loginBytes, _ := json.Marshal(loginPayload)

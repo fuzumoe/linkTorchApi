@@ -5,13 +5,13 @@ import (
 	"time"
 
 	"github.com/fuzumoe/urlinsight-backend/internal/service"
-	"github.com/fuzumoe/urlinsight-backend/tests/integration"
+	"github.com/fuzumoe/urlinsight-backend/tests/utils"
 )
 
 func TestHealthServiceIntegration(t *testing.T) {
 	// Setup test database.
-	db := integration.SetupTest(t)
-	defer integration.CleanTestData(t)
+	db := utils.SetupTest(t)
+	defer utils.CleanTestData(t)
 
 	t.Run("LiveHealthy", func(t *testing.T) {
 		hs := service.NewHealthService(db, "LiveHealthTest")

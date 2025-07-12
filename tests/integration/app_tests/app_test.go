@@ -12,12 +12,11 @@ import (
 	"time"
 
 	"github.com/agiledragon/gomonkey/v2"
-	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 
 	"github.com/fuzumoe/urlinsight-backend/configs"
 	"github.com/fuzumoe/urlinsight-backend/internal/app"
-	"github.com/fuzumoe/urlinsight-backend/tests/integration"
+	"github.com/fuzumoe/urlinsight-backend/tests/utils"
 )
 
 // Helper function to check if a string contains any of the given values.
@@ -31,14 +30,12 @@ func contains(s string, values []string) bool {
 }
 
 func TestAppRun_Integration(t *testing.T) {
-	// Use test mode to reduce noise in logs.
-	gin.SetMode(gin.TestMode)
-
 	// Setup test database.
-	_ = integration.SetupTest(t)
+	_ = utils.SetupTest(t)
 
 	// Get database connection details from environment variables.
 	dbHost := os.Getenv("DB_HOST")
+
 	if dbHost == "" {
 		dbHost = "localhost"
 	}
@@ -66,8 +63,8 @@ func TestAppRun_Integration(t *testing.T) {
 		dbUser, dbPassword, dbHost, dbPort, dbName)
 	t.Logf("Using test DSN: %s", testDBDSN)
 
-	_ = integration.SetupTest(t)
-	defer integration.CleanTestData(t)
+	_ = utils.SetupTest(t)
+	defer utils.CleanTestData(t)
 
 	t.Run("AppRun_Integration", func(t *testing.T) {
 		// Create a listener on a random port.
@@ -251,5 +248,5 @@ func TestAppRun_Integration(t *testing.T) {
 
 		t.Log("Test completed successfully")
 	})
-	integration.CleanTestData(t) // Clean up test data after the test completes.
+	utils.CleanTestData(t) // Clean up test data after the test completes.
 }

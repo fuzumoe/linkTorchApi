@@ -13,7 +13,7 @@ import (
 	"github.com/fuzumoe/urlinsight-backend/internal/handler"
 	"github.com/fuzumoe/urlinsight-backend/internal/server"
 	"github.com/fuzumoe/urlinsight-backend/internal/service"
-	"github.com/fuzumoe/urlinsight-backend/tests/integration"
+	"github.com/fuzumoe/urlinsight-backend/tests/utils"
 )
 
 func TestRouterIntegration(t *testing.T) {
@@ -21,7 +21,7 @@ func TestRouterIntegration(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Set up test database
-	db := integration.SetupTest(t)
+	db := utils.SetupTest(t)
 
 	// Create real services
 	healthService := service.NewHealthService(db, "IntegrationTest")

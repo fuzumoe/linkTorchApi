@@ -11,19 +11,19 @@ import (
 	"github.com/fuzumoe/urlinsight-backend/internal/model"
 	"github.com/fuzumoe/urlinsight-backend/internal/repository"
 	"github.com/fuzumoe/urlinsight-backend/internal/service"
-	"github.com/fuzumoe/urlinsight-backend/tests/integration"
+	"github.com/fuzumoe/urlinsight-backend/tests/utils"
 )
 
 func TestAuthService_Integration(t *testing.T) {
 	// Set up test database
-	db := integration.SetupTest(t)
+	db := utils.SetupTest(t)
 
 	// Initialize repositories with real DB
 	userRepo := repository.NewUserRepo(db)
 	tokenRepo := repository.NewTokenRepo(db)
 
 	// Initialize the auth service
-	jwtSecret := "integration-test-secret"
+	jwtSecret := "utils-test-secret"
 	tokenLifetime := 1 * time.Hour
 	authService := service.NewAuthService(userRepo, tokenRepo, jwtSecret, tokenLifetime)
 
@@ -222,5 +222,5 @@ func TestAuthService_Integration(t *testing.T) {
 	})
 
 	// Clean up test data
-	integration.CleanTestData(t)
+	utils.CleanTestData(t)
 }

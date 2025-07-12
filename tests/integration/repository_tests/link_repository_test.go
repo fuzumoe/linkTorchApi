@@ -10,12 +10,12 @@ import (
 
 	"github.com/fuzumoe/urlinsight-backend/internal/model"
 	"github.com/fuzumoe/urlinsight-backend/internal/repository"
-	"github.com/fuzumoe/urlinsight-backend/tests/integration"
+	"github.com/fuzumoe/urlinsight-backend/tests/utils"
 )
 
 func TestLinkRepo_Integration(t *testing.T) {
 	// Get a clean database state.
-	db := integration.SetupTest(t)
+	db := utils.SetupTest(t)
 
 	// Create repositories
 	linkRepo := repository.NewLinkRepo(db)
@@ -166,5 +166,5 @@ func TestLinkRepo_Integration(t *testing.T) {
 		assert.LessOrEqual(t, len(pagedLinks), 3, "Paginated result should have at most 3 links")
 	})
 
-	integration.CleanTestData(t)
+	utils.CleanTestData(t)
 }

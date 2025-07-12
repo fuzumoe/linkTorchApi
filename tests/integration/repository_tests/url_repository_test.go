@@ -9,12 +9,12 @@ import (
 
 	"github.com/fuzumoe/urlinsight-backend/internal/model"
 	"github.com/fuzumoe/urlinsight-backend/internal/repository"
-	"github.com/fuzumoe/urlinsight-backend/tests/integration"
+	"github.com/fuzumoe/urlinsight-backend/tests/utils"
 )
 
 func TestURLRepo_Integration(t *testing.T) {
 	// Get a clean database state.
-	db := integration.SetupTest(t)
+	db := utils.SetupTest(t)
 
 	// Create repositories
 	urlRepo := repository.NewURLRepo(db)
@@ -172,5 +172,5 @@ func TestURLRepo_Integration(t *testing.T) {
 		assert.EqualError(t, err, "url not found", "Should return error when deleting non-existent URL")
 	})
 
-	integration.CleanTestData(t)
+	utils.CleanTestData(t)
 }

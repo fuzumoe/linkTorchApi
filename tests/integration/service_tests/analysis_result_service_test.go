@@ -10,12 +10,12 @@ import (
 	"github.com/fuzumoe/urlinsight-backend/internal/model"
 	"github.com/fuzumoe/urlinsight-backend/internal/repository"
 	"github.com/fuzumoe/urlinsight-backend/internal/service"
-	"github.com/fuzumoe/urlinsight-backend/tests/integration"
+	"github.com/fuzumoe/urlinsight-backend/tests/utils"
 )
 
 func TestAnalysisService_Integration(t *testing.T) {
 	// Setup test database.
-	db := integration.SetupTest(t)
+	db := utils.SetupTest(t)
 
 	// Create repositories.
 	userRepo := repository.NewUserRepo(db)

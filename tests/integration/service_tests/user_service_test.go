@@ -10,12 +10,12 @@ import (
 	"github.com/fuzumoe/urlinsight-backend/internal/model"
 	"github.com/fuzumoe/urlinsight-backend/internal/repository"
 	"github.com/fuzumoe/urlinsight-backend/internal/service"
-	"github.com/fuzumoe/urlinsight-backend/tests/integration"
+	"github.com/fuzumoe/urlinsight-backend/tests/utils"
 )
 
 func TestUserService_Integration(t *testing.T) {
 	// Set up test database.
-	db := integration.SetupTest(t)
+	db := utils.SetupTest(t)
 
 	// Initialize repository and service with real DB.
 	userRepo := repository.NewUserRepo(db)
@@ -165,5 +165,5 @@ func TestUserService_Integration(t *testing.T) {
 		assert.NotNil(t, firstUser)
 	})
 
-	integration.CleanTestData(t)
+	utils.CleanTestData(t)
 }
