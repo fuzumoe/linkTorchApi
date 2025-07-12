@@ -17,7 +17,7 @@ TEST_COVERAGE_HTML=coverage.html
 
 # Build the application
 build:
-	$(GOBUILD) -o $(BINARY_NAME) -v ./cmd/main.go
+	$(GOBUILD) -o $(BINARY_NAME) -v .main.go
 
 # Build for Linux
 build-linux:
@@ -134,7 +134,7 @@ pre-commit-all:
 
 # Run the application
 run:
-	$(GOBUILD) -o $(BINARY_NAME) -v ./cmd/main.go
+	$(GOBUILD) -o $(BINARY_NAME) -v ./main.go
 	./$(BINARY_NAME)
 
 # Run in development mode
@@ -186,6 +186,10 @@ install-dev-tools:
 	go install github.com/kisielk/errcheck@latest
 	go install mvdan.cc/gofumpt@latest
 
+# Generate Swagger documentation
+swagger:
+	swag init -g main.go
+
 # Help
 help:
 	@echo "Available targets:"
@@ -236,10 +240,11 @@ help:
 	@echo ""
 	@echo "Utility targets:"
 	@echo "  install-dev-tools   - Install development tools"
+	@echo "  swagger             - Generate Swagger documentation"
 	@echo "  help                - Show this help"
 
 .PHONY: build build-linux clean test test-unit test-integration test-e2e test-coverage \
     test-unit-coverage test-integration-coverage test-e2e-coverage lint fmt fmt-strict \
     tidy deps verify install-hooks pre-commit-all run dev docker-compose-up \
     docker-compose-down db-up db-down test-db-setup benchmark benchmark-unit \
-    install-dev-tools full help
+    install-dev-tools full swagger help
