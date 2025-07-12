@@ -46,9 +46,9 @@ func TestURLRepo(t *testing.T) {
 			testURL.UserID,
 			testURL.OriginalURL,
 			"queued",
-			sqlmock.AnyArg(), // created_at
-			sqlmock.AnyArg(), // updated_at
-			sqlmock.AnyArg(), // deleted_at (nil)
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
 		).WillReturnResult(sqlmock.NewResult(1, 1))
 		mock.ExpectCommit()
 

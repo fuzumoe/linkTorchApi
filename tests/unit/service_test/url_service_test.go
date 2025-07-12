@@ -13,19 +13,19 @@ import (
 	"github.com/fuzumoe/urlinsight-backend/internal/service"
 )
 
-// DummyCrawlerPool implements crawler.Pool but does nothing.
+// DummyCrawlerPool
 type DummyCrawlerPool struct{}
 
-func (d *DummyCrawlerPool) Start()          {} // Added Start method
+func (d *DummyCrawlerPool) Start()          {}
 func (d *DummyCrawlerPool) Enqueue(id uint) {}
 func (d *DummyCrawlerPool) Shutdown()       {}
 
-// MockCrawlerPool is a mock implementation for testing Start and Stop.
+// MockCrawlerPool mocks implementation for testing Start and Stop.
 type MockCrawlerPool struct {
 	mock.Mock
 }
 
-func (m *MockCrawlerPool) Start() { // Added Start method
+func (m *MockCrawlerPool) Start() {
 	m.Called()
 }
 
@@ -37,7 +37,7 @@ func (m *MockCrawlerPool) Shutdown() {
 	m.Called()
 }
 
-// MockURLRepo is a mock implementation of repository.URLRepository.
+// MockURLRepo mocks implementation of repository.URLRepository.
 type MockURLRepo struct {
 	mock.Mock
 }
@@ -91,7 +91,6 @@ func (m *MockURLRepo) SaveResults(urlID uint, analysisRes *model.AnalysisResult,
 
 func TestURLService_Create(t *testing.T) {
 	mockRepo := new(MockURLRepo)
-	// Use dummy crawler pool for tests not related to Start/Stop.
 	dummyPool := &DummyCrawlerPool{}
 	svc := service.NewURLService(mockRepo, dummyPool)
 
@@ -349,7 +348,6 @@ func TestURLService_Stop(t *testing.T) {
 	svc := service.NewURLService(mockRepo, dummyPool)
 	urlID := uint(100)
 
-	// Change this line: use StatusError instead of StatusStopped
 	mockRepo.On("UpdateStatus", urlID, model.StatusError).Return(nil).Once()
 
 	err := svc.Stop(urlID)
