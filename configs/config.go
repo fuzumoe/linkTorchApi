@@ -29,6 +29,7 @@ type Config struct {
 	JWTLifetime         time.Duration
 	MySQLRootPassword   string
 	CORSOrigins         []string
+	NumberOfCrawlers    int // Number of concurrent crawlers
 	MaxConcurrentCrawls int
 	CrawlTimeout        time.Duration
 	UserAgent           string
@@ -55,6 +56,12 @@ func Load() (*Config, error) {
 	cfg.DevUserName = getEnv("DEV_USER_NAME", "DevUser")
 	cfg.DevUserEmail = getEnv("DEV_USER_EMAIL", "admin@admin.com")
 	cfg.DevUserPassword = getEnv("DEV_USER_PASSWORD", "admin123")
+	ncStr := getEnv("NUMBER_OF_CRAWLERS", "5")
+	nc, err := strconv.Atoi(ncStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid NUMBER_OF_CRAWLERS: %w", err)
+	}
+	cfg.NumberOfCrawlers = nc
 	if cfg.DatabaseUser == "" || cfg.DatabasePassword == "" || cfg.DatabaseName == "" {
 		return nil, fmt.Errorf("missing required database env vars")
 	}
