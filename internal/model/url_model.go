@@ -44,10 +44,21 @@ type URLDTO struct {
 }
 
 // CreateURLInput defines required fields to create a URL.
-type CreateURLInput struct {
+type CreateURLInputDTO struct {
 	UserID      uint   `json:"user_id" binding:"required"`
 	OriginalURL string `json:"original_url" binding:"required,url"`
 }
+type URLCreateRequestDTO struct {
+	OriginalURL string `json:"original_url" binding:"required,url" example:"https://example.com"`
+}
+
+type URLResultsDTO struct {
+	URL             *URLDTO           `json:"url"`
+	AnalysisResults []*AnalysisResult `json:"analysis_results"`
+	Links           []*Link           `json:"links"`
+}
+
+// AnalysisResult represents a snapshot of the analysis
 
 // ToDTO converts a URL model to a URLDTO.
 func (u *URL) ToDTO() *URLDTO {
@@ -62,7 +73,7 @@ func (u *URL) ToDTO() *URLDTO {
 }
 
 // FromCreateInput maps CreateURLInput to a URL model.
-func URLFromCreateInput(input *CreateURLInput) *URL {
+func URLFromCreateInput(input *CreateURLInputDTO) *URL {
 	now := time.Now()
 	return &URL{
 		UserID:      input.UserID,
