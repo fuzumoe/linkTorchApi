@@ -73,7 +73,7 @@ func Run() error {
 
 	// Initialize analyzers and crawlers.
 	htmlAnalyzer := analyzer.NewHTMLAnalyzer()
-	crawlerPool := crawler.New(urlRepo, htmlAnalyzer, 5, 50)
+	crawlerPool := crawler.New(urlRepo, htmlAnalyzer, cfg.NumberOfCrawlers, cfg.MaxConcurrentCrawls, cfg.CrawlTimeout)
 
 	urlSvc := service.NewURLService(urlRepo, crawlerPool)
 
