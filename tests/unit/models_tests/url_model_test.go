@@ -2,6 +2,7 @@ package model_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -38,7 +39,7 @@ func TestURL(t *testing.T) {
 	})
 
 	t.Run("From Create Input", func(t *testing.T) {
-		input := &model.CreateURLInput{
+		input := &model.CreateURLInputDTO{
 			UserID:      2,
 			OriginalURL: "https://new-example.com",
 		}
@@ -94,7 +95,6 @@ func TestURL(t *testing.T) {
 	})
 
 	t.Run("UpdateURL Invalid Input", func(t *testing.T) {
-		// Invalid URL format and status not one of the allowed values.
 		invalidJSON := `{"original_url": "not-a-url", "status": "invalid"}`
 		var input model.UpdateURLInput
 
@@ -112,8 +112,52 @@ func TestURL(t *testing.T) {
 		parsed := u.URL()
 		require.NotNil(t, parsed, "Parsed URL should not be nil")
 		assert.Equal(t, "example.com", parsed.Host, "Host should be 'example.com'")
-		// Verify scheme and path
 		assert.Equal(t, "https", parsed.Scheme, "Scheme should be 'https'")
 		assert.Equal(t, "/path", parsed.Path, "Path should be '/path'")
+	})
+
+	// New tests for JSON unmarshaling of AnalysisResult and Link
+
+	t.Run("AnalysisResult JSON", func(t *testing.T) {
+		// Adjust the JSON payload to match your AnalysisResult struct.
+		// Ensure that has_login_form is a proper JSON boolean.
+		jsonStr := `{
+            "id": 1,
+            "url_id": 1,
+            "html_version": "HTML5",
+            "title": "Test Title",
+            "h1_count": 2,
+            "h2_count": 3,
+            "h3_count": 4,
+            "h4_count": 0,
+            "h5_count": 0,
+            "h6_count": 0,
+            "has_login_form": true,
+            "internal_link_count": 5,
+            "external_link_count": 6,
+            "broken_link_count": 0,
+            "created_at": "2025-07-09T12:00:00Z",
+            "updated_at": "2025-07-09T13:00:00Z"
+        }`
+		var ar model.AnalysisResult
+		err := json.Unmarshal([]byte(jsonStr), &ar)
+		require.NoError(t, err, "AnalysisResult should unmarshal without error")
+		assert.True(t, ar.HasLoginForm, "HasLoginForm should be true")
+	})
+
+	t.Run("Link JSON", func(t *testing.T) {
+		// Adjust the JSON payload to match your Link struct.
+		// Ensure that is_external is a proper JSON boolean.
+		jsonStr := `{
+            "id": 1,
+            "url_id": 1,
+            "href": "https://example.com",
+            "is_external": false,
+            "status_code": 200
+        }`
+		var l model.Link
+		err := json.Unmarshal([]byte(jsonStr), &l)
+		require.NoError(t, err, "Link should unmarshal without error")
+		assert.False(t, l.IsExternal, "IsExternal should be false")
 	})
 }
