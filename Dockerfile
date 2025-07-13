@@ -16,7 +16,11 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Build the application
+# Explicitly fetch the missing module
+RUN go get github.com/fuzumoe/urlinsight-backend/docs
+
+
+# Build the backend binary
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main .
 
 # Use minimal alpine image for final stage
