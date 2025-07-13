@@ -36,19 +36,33 @@ func paginationFromQuery(c *gin.Context) repository.Pagination {
 // @Tags    urls
 // @Accept  json
 // @Produce json
-// @Param   input body model.CreateURLInput true "URL to crawl"
+// @Param   input body model.URLCreateRequestDTO true "URL to crawl"
 // @Success 201 {object} map[string]uint "{id}"
 // @Failure 400 {object} map[string]string "error"
 // @Security JWTAuth
 // @Security BasicAuth
-// @Router  /api/urls [post]
+// @Router  /urls [post]
 func (h *URLHandler) Create(c *gin.Context) {
-	var in model.CreateURLInput
-	if err := c.ShouldBindJSON(&in); err != nil {
+	var requestDTO model.URLCreateRequestDTO
+	if err := c.ShouldBindJSON(&requestDTO); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
 		return
 	}
-	id, err := h.urlService.Create(&in)
+
+	// Get user ID from the auth context
+	uidAny, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	// Create the full input DTO with both UserID and OriginalURL
+	inputDTO := &model.CreateURLInputDTO{
+		UserID:      uidAny.(uint),
+		OriginalURL: requestDTO.OriginalURL,
+	}
+
+	id, err := h.urlService.Create(inputDTO)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -59,14 +73,18 @@ func (h *URLHandler) Create(c *gin.Context) {
 // @Summary List URLs (paginated)
 // @Tags    urls
 // @Produce json
-// @Param   page      query int false "page"
-// @Param   page_size query int false "page_size"
+// @Param   page      query int false "page" default(1) example(1)
+// @Param   page_size query int false "page_size" default(10) example(10)
 // @Success 200 {array} model.URLDTO
 // @Security JWTAuth
 // @Security BasicAuth
-// @Router  /api/urls [get]
+// @Router  /urls [get]
 func (h *URLHandler) List(c *gin.Context) {
-	uidAny, _ := c.Get("userID")
+	uidAny, exists := c.Get("user_id") // Changed from "userID" to "user_id"
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
 	userID := uidAny.(uint)
 
 	items, err := h.urlService.List(userID, paginationFromQuery(c))
@@ -84,7 +102,7 @@ func (h *URLHandler) List(c *gin.Context) {
 // @Success 200 {object} model.URLDTO
 // @Security JWTAuth
 // @Security BasicAuth
-// @Router  /api/urls/{id} [get]
+// @Router  /urls/{id} [get]
 func (h *URLHandler) Get(c *gin.Context) {
 	id, ok := parseUintParam(c, "id")
 	if !ok {
@@ -107,7 +125,7 @@ func (h *URLHandler) Get(c *gin.Context) {
 // @Success 200 {object} map[string]string "updated"
 // @Security JWTAuth
 // @Security BasicAuth
-// @Router  /api/urls/{id} [put]
+// @Router  /urls/{id} [put]
 func (h *URLHandler) Update(c *gin.Context) {
 	id, ok := parseUintParam(c, "id")
 	if !ok {
@@ -133,7 +151,7 @@ func (h *URLHandler) Update(c *gin.Context) {
 // @Success 200 {object} map[string]string "deleted"
 // @Security JWTAuth
 // @Security BasicAuth
-// @Router  /api/urls/{id} [delete]
+// @Router  /urls/{id} [delete]
 func (h *URLHandler) Delete(c *gin.Context) {
 	id, ok := parseUintParam(c, "id")
 	if !ok {
@@ -153,7 +171,7 @@ func (h *URLHandler) Delete(c *gin.Context) {
 // @Success 202 {object} map[string]string "queued"
 // @Security JWTAuth
 // @Security BasicAuth
-// @Router  /api/urls/{id}/start [patch]
+// @Router  /urls/{id}/start [patch]
 func (h *URLHandler) Start(c *gin.Context) {
 	id, ok := parseUintParam(c, "id")
 	if !ok {
@@ -173,7 +191,7 @@ func (h *URLHandler) Start(c *gin.Context) {
 // @Success 202 {object} map[string]string "stopped"
 // @Security JWTAuth
 // @Security BasicAuth
-// @Router  /api/urls/{id}/stop [patch]
+// @Router  /urls/{id}/stop [patch]
 func (h *URLHandler) Stop(c *gin.Context) {
 	id, ok := parseUintParam(c, "id")
 	if !ok {
@@ -190,20 +208,37 @@ func (h *URLHandler) Stop(c *gin.Context) {
 // @Tags    urls
 // @Produce json
 // @Param   id path int true "URL ID"
-// @Success 200 {object} model.URLDTO
+// @Success 200 {object} model.URLResultsDTO
+// @Failure 404 {object} map[string]string "not found"
+// @Failure 400 {object} map[string]string "bad request"
 // @Security JWTAuth
 // @Security BasicAuth
-// @Router  /api/urls/{id}/results [get]
+// @Router  /urls/{id}/results [get]
 func (h *URLHandler) Results(c *gin.Context) {
 	id, ok := parseUintParam(c, "id")
 	if !ok {
 		return
 	}
-	dto, err := h.urlService.Results(id)
+
+	// Use the existing ResultsWithDetails method
+	url, analysisResults, links, err := h.urlService.ResultsWithDetails(id)
 	if err != nil {
+		// Check if it's a "not found" error
+		if err.Error() == "record not found" {
+			c.JSON(http.StatusNotFound, gin.H{"error": "URL not found"})
+			return
+		}
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
+	// Build the URLResultsDTO struct manually
+	dto := &model.URLResultsDTO{
+		URL:             url.ToDTO(),
+		AnalysisResults: analysisResults,
+		Links:           links,
+	}
+
 	c.JSON(http.StatusOK, dto)
 }
 

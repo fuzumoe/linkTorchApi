@@ -19,28 +19,26 @@ import (
 // dummyURLService is a dummy implementation of service.URLService for testing.
 type dummyURLService struct{}
 
-func (s *dummyURLService) Create(in *model.CreateURLInput) (uint, error) {
+func (s *dummyURLService) Create(in *model.CreateURLInputDTO) (uint, error) {
 	return 1, nil
 }
 
 func (s *dummyURLService) Get(id uint) (*model.URLDTO, error) {
-	dto := model.URLDTO{
+	return &model.URLDTO{
 		ID:          id,
 		OriginalURL: "http://example.com",
 		Status:      model.StatusQueued,
 		UserID:      1,
-	}
-	return &dto, nil
+	}, nil
 }
 
 func (s *dummyURLService) List(userID uint, p repository.Pagination) ([]*model.URLDTO, error) {
-	dto := &model.URLDTO{
+	return []*model.URLDTO{{
 		ID:          1,
 		OriginalURL: "http://example.com",
 		Status:      model.StatusQueued,
 		UserID:      userID,
-	}
-	return []*model.URLDTO{dto}, nil
+	}}, nil
 }
 
 func (s *dummyURLService) Update(id uint, in *model.UpdateURLInput) error {
@@ -60,13 +58,22 @@ func (s *dummyURLService) Stop(id uint) error {
 }
 
 func (s *dummyURLService) Results(id uint) (*model.URLDTO, error) {
-	dto := model.URLDTO{
+	return &model.URLDTO{
 		ID:          id,
 		OriginalURL: "http://example.com",
 		Status:      model.StatusDone,
 		UserID:      1,
-	}
-	return &dto, nil
+	}, nil
+}
+
+// ResultsWithDetails returns the raw URL with details needed by the Results handler.
+func (s *dummyURLService) ResultsWithDetails(id uint) (*model.URL, []*model.AnalysisResult, []*model.Link, error) {
+	return &model.URL{
+		ID:          id,
+		UserID:      1,
+		OriginalURL: "http://example.com/results",
+		Status:      model.StatusDone,
+	}, []*model.AnalysisResult{}, []*model.Link{}, nil
 }
 
 // setupRouter returns a new Gin engine in test mode.
@@ -81,10 +88,13 @@ func TestURLHandler(t *testing.T) {
 	router := setupRouter()
 
 	// Register testing endpoints.
-	router.POST("/api/urls", h.Create)
+	// For endpoints that require user auth, we simulate it by setting "user_id" in the context.
+	router.POST("/api/urls", func(c *gin.Context) {
+		c.Set("user_id", uint(1))
+		h.Create(c)
+	})
 	router.GET("/api/urls", func(c *gin.Context) {
-		// simulate middleware setting userID.
-		c.Set("userID", uint(1))
+		c.Set("user_id", uint(1))
 		h.List(c)
 	})
 	router.GET("/api/urls/:id", h.Get)
@@ -95,9 +105,8 @@ func TestURLHandler(t *testing.T) {
 	router.GET("/api/urls/:id/results", h.Results)
 
 	t.Run("Create", func(t *testing.T) {
-		input := model.CreateURLInput{
+		input := model.URLCreateRequestDTO{
 			OriginalURL: "http://example.com",
-			UserID:      1,
 		}
 		jsonInput, err := json.Marshal(input)
 		require.NoError(t, err)
@@ -190,7 +199,7 @@ func TestURLHandler(t *testing.T) {
 		var resp map[string]string
 		err = json.Unmarshal(w.Body.Bytes(), &resp)
 		require.NoError(t, err)
-		// Expecting the status to be returned as "queued".
+		// Expect the status to be returned as "queued"
 		assert.Equal(t, model.StatusQueued, resp["status"])
 	})
 
@@ -204,7 +213,7 @@ func TestURLHandler(t *testing.T) {
 		var resp map[string]string
 		err = json.Unmarshal(w.Body.Bytes(), &resp)
 		require.NoError(t, err)
-		// Expecting the status to be returned as "stopped".
+		// Expect the status to be returned as "stopped"
 		assert.Equal(t, model.StatusStopped, resp["status"])
 	})
 
@@ -215,9 +224,10 @@ func TestURLHandler(t *testing.T) {
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
-		var dto model.URLDTO
+		var dto model.URLResultsDTO
 		err = json.Unmarshal(w.Body.Bytes(), &dto)
 		require.NoError(t, err)
-		assert.Equal(t, model.StatusDone, dto.Status)
+		// Check that the URL inside the response has status "done" as returned by ResultsWithDetails.
+		assert.Equal(t, model.StatusDone, dto.URL.Status)
 	})
 }
