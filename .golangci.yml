@@ -22,12 +22,12 @@ issues:
   exclude-files:
     - ".*\\.gen\\.go"
   exclude-rules:
-    - path: _test\\.go
+    - path: _test\.go
       linters:
         - errcheck
     - linters:
         - goanalysis_metalinter
-      text: "Cannot range over: func(yield func(E) bool)"
+      text: "Cannot range over: func\\(yield func\\(.*\\) bool\\)"
   max-same-issues: 0
 linters:
   enable:
