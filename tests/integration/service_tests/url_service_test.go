@@ -39,7 +39,7 @@ func TestURLService_Integration(t *testing.T) {
 
 		// Create a crawler pool with context for proper shutdown
 		crawlerCtx, cancelCrawler = context.WithCancel(context.Background())
-		crawlerPool := crawler.New(urlRepo, htmlAnalyzer, 1, 5)
+		crawlerPool := crawler.New(urlRepo, htmlAnalyzer, 1, 5, 1*time.Second)
 
 		// Start the crawler pool in a goroutine (it now blocks until context is cancelled)
 		go crawlerPool.Start(crawlerCtx)
