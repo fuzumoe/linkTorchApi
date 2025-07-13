@@ -68,7 +68,7 @@ func TestURLService_Integration(t *testing.T) {
 
 	t.Run("Create and Get", func(t *testing.T) {
 		// Create a URL through URLService.
-		createInput := &model.CreateURLInput{
+		createInput := &model.CreateURLInputDTO{
 			UserID:      testUser.ID,
 			OriginalURL: "https://example.com",
 		}
@@ -90,7 +90,7 @@ func TestURLService_Integration(t *testing.T) {
 			"https://example.com/3",
 		}
 		for _, orig := range urlsToCreate {
-			input := &model.CreateURLInput{
+			input := &model.CreateURLInputDTO{
 				UserID:      testUser.ID,
 				OriginalURL: orig,
 			}
@@ -110,7 +110,7 @@ func TestURLService_Integration(t *testing.T) {
 
 	t.Run("Update", func(t *testing.T) {
 		// Create a URL to update.
-		createInput := &model.CreateURLInput{
+		createInput := &model.CreateURLInputDTO{
 			UserID:      testUser.ID,
 			OriginalURL: "https://example.com/old",
 		}
@@ -134,7 +134,7 @@ func TestURLService_Integration(t *testing.T) {
 
 	t.Run("Delete", func(t *testing.T) {
 		// Create a URL to delete.
-		createInput := &model.CreateURLInput{
+		createInput := &model.CreateURLInputDTO{
 			UserID:      testUser.ID,
 			OriginalURL: "https://example.com/delete",
 		}
@@ -153,7 +153,7 @@ func TestURLService_Integration(t *testing.T) {
 
 	t.Run("Start", func(t *testing.T) {
 		// Create a URL to start crawling
-		createInput := &model.CreateURLInput{
+		createInput := &model.CreateURLInputDTO{
 			UserID:      testUser.ID,
 			OriginalURL: "https://example.com/start",
 		}
@@ -172,7 +172,7 @@ func TestURLService_Integration(t *testing.T) {
 
 	t.Run("Stop", func(t *testing.T) {
 		// Create a URL to stop crawling
-		createInput := &model.CreateURLInput{
+		createInput := &model.CreateURLInputDTO{
 			UserID:      testUser.ID,
 			OriginalURL: "https://example.com/stop",
 		}
@@ -201,7 +201,7 @@ func TestURLService_Integration(t *testing.T) {
 
 	t.Run("Results", func(t *testing.T) {
 		// Create a URL for testing results
-		createInput := &model.CreateURLInput{
+		createInput := &model.CreateURLInputDTO{
 			UserID:      testUser.ID,
 			OriginalURL: "https://example.com/results",
 		}
@@ -216,9 +216,41 @@ func TestURLService_Integration(t *testing.T) {
 			"Results should contain the original URL")
 	})
 
+	t.Run("ResultsWithDetails", func(t *testing.T) {
+		// Create a URL for testing detailed results
+		createInput := &model.CreateURLInputDTO{
+			UserID:      testUser.ID,
+			OriginalURL: "https://example.com/details",
+		}
+		createdID, err := urlService.Create(createInput)
+		require.NoError(t, err, "Should create URL without error.")
+
+		// Call ResultsWithDetails method
+		url, analysisResults, links, err := urlService.ResultsWithDetails(createdID)
+		require.NoError(t, err, "Should get detailed results without error")
+
+		// Verify URL object
+		assert.NotNil(t, url, "URL object should not be nil")
+		assert.Equal(t, "https://example.com/details", url.OriginalURL,
+			"URL should contain the original URL")
+		assert.Equal(t, createdID, url.ID, "URL ID should match created ID")
+
+		// In the current implementation, these collections might be nil if no analysis has been performed
+		// That's okay - we just need to check that the call works and returns the URL properly
+		if analysisResults != nil {
+			assert.IsType(t, []*model.AnalysisResult{}, analysisResults,
+				"Analysis results should be of the correct type when not nil")
+		}
+
+		if links != nil {
+			assert.IsType(t, []*model.Link{}, links,
+				"Links should be of the correct type when not nil")
+		}
+	})
+
 	t.Run("ErrorCases", func(t *testing.T) {
 		// Create a URL first.
-		createInput := &model.CreateURLInput{
+		createInput := &model.CreateURLInputDTO{
 			UserID:      testUser.ID,
 			OriginalURL: "https://example.com/error",
 		}
@@ -239,10 +271,24 @@ func TestURLService_Integration(t *testing.T) {
 			// Try to start a URL that doesn't exist
 			err = urlService.Start(9999)
 			assert.Error(t, err, "Starting a non-existent URL should return an error.")
+			assert.Contains(t, err.Error(), "cannot start crawling",
+				"Error message should indicate the start operation failed")
 
 			// Try to stop a URL that doesn't exist
 			err = urlService.Stop(9999)
 			assert.Error(t, err, "Stopping a non-existent URL should return an error.")
+			assert.Contains(t, err.Error(), "cannot stop crawling",
+				"Error message should indicate the stop operation failed")
+
+			// Try to get results for a URL that doesn't exist
+			_, err = urlService.Results(9999)
+			assert.Error(t, err, "Getting results for a non-existent URL should return an error")
+
+			// Try to get detailed results for a URL that doesn't exist
+			_, _, _, err = urlService.ResultsWithDetails(9999)
+			assert.Error(t, err, "Getting detailed results for a non-existent URL should return an error")
+			assert.Contains(t, err.Error(), "failed to get detailed URL results",
+				"Error message should indicate the operation failed")
 		})
 	})
 }

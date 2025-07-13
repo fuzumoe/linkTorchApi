@@ -1,7 +1,9 @@
 package repository
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 
 	"gorm.io/gorm"
 
@@ -20,6 +22,7 @@ type URLRepository interface {
 	SaveResults(id uint, res *model.AnalysisResult, links []model.Link) error
 
 	Results(id uint) (*model.URL, error)
+	ResultsWithDetails(id uint) (*model.URL, []*model.AnalysisResult, []*model.Link, error)
 }
 
 type urlRepo struct {
@@ -88,6 +91,7 @@ func (r *urlRepo) SaveResults(id uint, res *model.AnalysisResult, links []model.
 	})
 }
 
+// Already in your code - looks good
 func (r *urlRepo) Results(id uint) (*model.URL, error) {
 	var u model.URL
 	err := r.db.
@@ -95,4 +99,82 @@ func (r *urlRepo) Results(id uint) (*model.URL, error) {
 		Preload("Links").
 		First(&u, id).Error
 	return &u, err
+}
+
+// ResultsWithDetails retrieves URL with analysis results and links in a single query
+func (r *urlRepo) ResultsWithDetails(id uint) (*model.URL, []*model.AnalysisResult, []*model.Link, error) {
+	// Use a single complex query to get everything at once
+	var resultJSON string
+	query := `SELECT
+  JSON_OBJECT(
+    'url',
+      JSON_OBJECT(
+        'id',           u.id,
+        'user_id',      u.user_id,
+        'original_url', u.original_url,
+        'status',       u.status,
+        'created_at',   DATE_FORMAT(u.created_at, '%Y-%m-%dT%H:%i:%s.%fZ'),
+        'updated_at',   DATE_FORMAT(u.updated_at, '%Y-%m-%dT%H:%i:%s.%fZ')
+      ),
+    'analysis_results',
+      (
+        SELECT JSON_ARRAYAGG(
+                 JSON_OBJECT(
+                   'id',                  ar.id,
+                   'url_id',              ar.url_id,
+                   'html_version',        ar.html_version,
+                   'title',               ar.title,
+                   'h1_count',            ar.h1_count,
+                   'h2_count',            ar.h2_count,
+                   'h3_count',            ar.h3_count,
+                   'h4_count',            ar.h4_count,
+                   'h5_count',            ar.h5_count,
+                   'h6_count',            ar.h6_count,
+                   'has_login_form',      IF(ar.has_login_form = 1, CAST('true' AS JSON), CAST('false' AS JSON)),
+                   'internal_link_count', ar.internal_link_count,
+                   'external_link_count', ar.external_link_count,
+                   'broken_link_count',   ar.broken_link_count,
+                   'created_at',          DATE_FORMAT(ar.created_at, '%Y-%m-%dT%H:%i:%s.%fZ'),
+                   'updated_at',          DATE_FORMAT(ar.updated_at, '%Y-%m-%dT%H:%i:%s.%fZ')
+                 )
+               )
+        FROM   analysis_results ar
+        WHERE  ar.url_id = u.id
+        ORDER BY ar.created_at DESC
+      ),
+    'links',
+      (
+        SELECT JSON_ARRAYAGG(
+                 JSON_OBJECT(
+                   'id',          l.id,
+                   'url_id',      l.url_id,
+                   'href',        l.href,
+                   'is_external', IF(l.is_external = 1, CAST('true' AS JSON), CAST('false' AS JSON)),
+                   'status_code', l.status_code
+                 )
+               )
+        FROM   links l
+        WHERE  l.url_id = u.id
+      )
+  ) AS result_document
+FROM urls u
+WHERE u.id = ?`
+	// Execute the query with the URL ID
+	err := r.db.Raw(query, id).Scan(&resultJSON).Error
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to execute complex query: %w", err)
+	}
+
+	// Parse the JSON result into our structs
+	var result struct {
+		URL             model.URL               `json:"url"`
+		AnalysisResults []*model.AnalysisResult `json:"analysis_results"`
+		Links           []*model.Link           `json:"links"`
+	}
+
+	if err := json.Unmarshal([]byte(resultJSON), &result); err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to parse JSON result: %w", err)
+	}
+
+	return &result.URL, result.AnalysisResults, result.Links, nil
 }

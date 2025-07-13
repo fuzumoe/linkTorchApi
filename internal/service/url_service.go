@@ -11,15 +11,15 @@ import (
 
 // URLService defines business operations around URLs.
 type URLService interface {
-	Create(input *model.CreateURLInput) (uint, error)
+	Create(input *model.CreateURLInputDTO) (uint, error)
 	Get(id uint) (*model.URLDTO, error)
 	List(userID uint, p repository.Pagination) ([]*model.URLDTO, error)
 	Update(id uint, input *model.UpdateURLInput) error
 	Delete(id uint) error
-
 	Start(id uint) error
 	Stop(id uint) error
 	Results(id uint) (*model.URLDTO, error)
+	ResultsWithDetails(id uint) (*model.URL, []*model.AnalysisResult, []*model.Link, error)
 }
 
 type urlService struct {
@@ -79,16 +79,26 @@ func (s *urlService) Stop(id uint) error {
 	return s.repo.UpdateStatus(id, model.StatusError)
 }
 
-// Results: loads URL with analysis + links eager-loaded
+// Results loads URL with analysis + links eager-loaded via simple preload
 func (s *urlService) Results(id uint) (*model.URLDTO, error) {
-	u, err := s.repo.Results(id) // helper added to url_repository.go
+	url, err := s.repo.Results(id)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get URL results: %w", err)
 	}
-	return u.ToDTO(), nil
+	return url.ToDTO(), nil
 }
 
-func (s *urlService) Create(input *model.CreateURLInput) (uint, error) {
+// ResultsWithDetails provides detailed URL analysis data using the optimized query
+func (s *urlService) ResultsWithDetails(id uint) (*model.URL, []*model.AnalysisResult, []*model.Link, error) {
+	url, analysisResults, links, err := s.repo.ResultsWithDetails(id)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to get detailed URL results: %w", err)
+	}
+
+	return url, analysisResults, links, nil
+}
+
+func (s *urlService) Create(input *model.CreateURLInputDTO) (uint, error) {
 	u := model.URLFromCreateInput(input)
 	if err := s.repo.Create(u); err != nil {
 		return 0, err

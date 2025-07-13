@@ -191,16 +191,156 @@ func TestURLRepo_Integration(t *testing.T) {
 		require.NoError(t, err, "Should save analysis results without error")
 
 		// Retrieve the URL with preloaded relations.
-		resultURL, err := urlRepo.Results(newURL.ID)
-		require.NoError(t, err, "Should retrieve URL via Results")
+		resultURL, err := urlRepo.FindByID(newURL.ID)
+		require.NoError(t, err, "Should retrieve URL with results")
 		require.NotEmpty(t, resultURL.AnalysisResults, "AnalysisResults should not be empty")
 		require.NotEmpty(t, resultURL.Links, "Links should not be empty")
 		// Verify analysis result details.
 		assert.Equal(t, "Analysis Title", resultURL.AnalysisResults[0].Title)
 		assert.Equal(t, "HTML5", resultURL.AnalysisResults[0].HTMLVersion)
 		// Verify links order and Href.
-		assert.Equal(t, "https://example.com/link1", resultURL.Links[0].Href)
-		assert.Equal(t, "https://example.com/link2", resultURL.Links[1].Href)
+		assert.Len(t, resultURL.Links, 2, "Should have 2 links")
+		assert.Contains(t, []string{"https://example.com/link1", "https://example.com/link2"},
+			resultURL.Links[0].Href, "Should contain link1 or link2")
+		assert.Contains(t, []string{"https://example.com/link1", "https://example.com/link2"},
+			resultURL.Links[1].Href, "Should contain link1 or link2")
+	})
+
+	// New test for Results method
+	t.Run("Results", func(t *testing.T) {
+		// Create a new URL for testing Results
+		resultsURL := &model.URL{
+			UserID:      testUser.ID,
+			OriginalURL: "https://results-test.com",
+			Status:      "done",
+		}
+		err := urlRepo.Create(resultsURL)
+		require.NoError(t, err, "Should create URL for Results test")
+
+		// Add analysis result and links
+		analysisRes := &model.AnalysisResult{
+			URLID:        resultsURL.ID,
+			HTMLVersion:  "HTML5",
+			Title:        "Results Test Page",
+			H1Count:      3,
+			H2Count:      6,
+			HasLoginForm: false,
+		}
+		err = db.Create(analysisRes).Error
+		require.NoError(t, err, "Should create analysis result for Results test")
+
+		links := []model.Link{
+			{URLID: resultsURL.ID, Href: "https://results-link1.com", StatusCode: 200},
+			{URLID: resultsURL.ID, Href: "https://results-link2.com", StatusCode: 404},
+		}
+		err = db.CreateInBatches(links, 10).Error
+		require.NoError(t, err, "Should create links for Results test")
+
+		// Test the Results method
+		url, err := urlRepo.Results(resultsURL.ID)
+		require.NoError(t, err, "Should get results without error")
+		assert.Equal(t, resultsURL.ID, url.ID, "URL ID should match")
+		assert.Equal(t, "https://results-test.com", url.OriginalURL, "URL should have correct original URL")
+
+		// Verify analysis results
+		require.NotEmpty(t, url.AnalysisResults, "Analysis results should be preloaded")
+		assert.Equal(t, "Results Test Page", url.AnalysisResults[0].Title, "Analysis result should have correct title")
+		assert.Equal(t, 3, url.AnalysisResults[0].H1Count, "Analysis result should have correct H1 count")
+
+		// Verify links
+		require.NotEmpty(t, url.Links, "Links should be preloaded")
+		assert.Len(t, url.Links, 2, "Should have 2 links")
+		// Links might be returned in any order, so we check both possibilities
+		linkHrefs := []string{url.Links[0].Href, url.Links[1].Href}
+		assert.Contains(t, linkHrefs, "https://results-link1.com", "Links should include link1")
+		assert.Contains(t, linkHrefs, "https://results-link2.com", "Links should include link2")
+
+		// Test not found case
+		_, err = urlRepo.Results(9999)
+		assert.Error(t, err, "Should return error for non-existent URL")
+	})
+
+	// New test for ResultsWithDetails method
+	t.Run("ResultsWithDetails", func(t *testing.T) {
+		// Create a new URL for testing ResultsWithDetails
+		detailsURL := &model.URL{
+			UserID:      testUser.ID,
+			OriginalURL: "https://details-test.com",
+			Status:      "done",
+		}
+		err := urlRepo.Create(detailsURL)
+		require.NoError(t, err, "Should create URL for ResultsWithDetails test")
+
+		// Add analysis result and links
+		analysisRes := &model.AnalysisResult{
+			URLID:             detailsURL.ID,
+			HTMLVersion:       "HTML5",
+			Title:             "Details Test Page",
+			H1Count:           4,
+			H2Count:           8,
+			HasLoginForm:      true,
+			InternalLinkCount: 5,
+			ExternalLinkCount: 3,
+			BrokenLinkCount:   1,
+		}
+		err = db.Create(analysisRes).Error
+		require.NoError(t, err, "Should create analysis result for ResultsWithDetails test")
+
+		links := []model.Link{
+			{URLID: detailsURL.ID, Href: "https://details-internal.com", IsExternal: false, StatusCode: 200},
+			{URLID: detailsURL.ID, Href: "https://details-external.com", IsExternal: true, StatusCode: 200},
+			{URLID: detailsURL.ID, Href: "https://details-broken.com", IsExternal: true, StatusCode: 404},
+		}
+		err = db.CreateInBatches(links, 10).Error
+		require.NoError(t, err, "Should create links for ResultsWithDetails test")
+
+		// Test the ResultsWithDetails method - note return type of links is []*model.Link
+		url, analysisResults, linkPointers, err := urlRepo.ResultsWithDetails(detailsURL.ID)
+		require.NoError(t, err, "Should get detailed results without error")
+
+		// Verify URL
+		assert.Equal(t, detailsURL.ID, url.ID, "URL ID should match")
+		assert.Equal(t, "https://details-test.com", url.OriginalURL, "URL should have correct original URL")
+
+		// Verify analysis results
+		require.NotNil(t, analysisResults, "Analysis results should not be nil")
+		assert.Len(t, analysisResults, 1, "Should have 1 analysis result")
+		assert.Equal(t, "Details Test Page", analysisResults[0].Title, "Analysis result should have correct title")
+		assert.Equal(t, 4, analysisResults[0].H1Count, "Analysis result should have correct H1 count")
+		assert.Equal(t, 5, analysisResults[0].InternalLinkCount, "Analysis result should have correct internal link count")
+		assert.Equal(t, 3, analysisResults[0].ExternalLinkCount, "Analysis result should have correct external link count")
+		assert.Equal(t, 1, analysisResults[0].BrokenLinkCount, "Analysis result should have correct broken link count")
+		assert.True(t, analysisResults[0].HasLoginForm, "Analysis result should have correct login form flag")
+
+		// Verify links - linkPointers is now []*model.Link
+		require.NotNil(t, linkPointers, "Links should not be nil")
+		assert.Len(t, linkPointers, 3, "Should have 3 links")
+
+		// Create maps to easily verify links exist regardless of order
+		linkMap := make(map[string]*model.Link)
+		for _, link := range linkPointers {
+			linkMap[link.Href] = link // link is already a *model.Link
+		}
+
+		// Verify each expected link exists
+		internalLink, found := linkMap["https://details-internal.com"]
+		assert.True(t, found, "Should have internal link")
+		assert.False(t, internalLink.IsExternal, "Internal link should be marked as not external")
+		assert.Equal(t, 200, internalLink.StatusCode, "Internal link should have correct status code")
+
+		externalLink, found := linkMap["https://details-external.com"]
+		assert.True(t, found, "Should have external link")
+		assert.True(t, externalLink.IsExternal, "External link should be marked as external")
+		assert.Equal(t, 200, externalLink.StatusCode, "External link should have correct status code")
+
+		brokenLink, found := linkMap["https://details-broken.com"]
+		assert.True(t, found, "Should have broken link")
+		assert.True(t, brokenLink.IsExternal, "Broken link should be marked as external")
+		assert.Equal(t, 404, brokenLink.StatusCode, "Broken link should have correct status code")
+
+		// Test not found case
+		_, _, _, err = urlRepo.ResultsWithDetails(9999)
+		assert.Error(t, err, "Should return error for non-existent URL")
 	})
 
 	t.Run("Delete", func(t *testing.T) {

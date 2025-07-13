@@ -3,7 +3,9 @@ package service_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -29,11 +31,9 @@ type MockCrawlerPool struct {
 func (m *MockCrawlerPool) Start(ctx context.Context) {
 	m.Called(ctx)
 }
-
 func (m *MockCrawlerPool) Enqueue(id uint) {
 	m.Called(id)
 }
-
 func (m *MockCrawlerPool) Shutdown() {
 	m.Called()
 }
@@ -84,10 +84,18 @@ func (m *MockURLRepo) Results(id uint) (*model.URL, error) {
 	return args.Get(0).(*model.URL), args.Error(1)
 }
 
-// New method added to fully implement repository.URLRepository.
 func (m *MockURLRepo) SaveResults(urlID uint, analysisRes *model.AnalysisResult, links []model.Link) error {
 	args := m.Called(urlID, analysisRes, links)
 	return args.Error(0)
+}
+
+// New method added to fully implement repository.URLRepository.
+func (m *MockURLRepo) ResultsWithDetails(id uint) (*model.URL, []*model.AnalysisResult, []*model.Link, error) {
+	args := m.Called(id)
+	if args.Get(0) == nil {
+		return nil, nil, nil, args.Error(3)
+	}
+	return args.Get(0).(*model.URL), args.Get(1).([]*model.AnalysisResult), args.Get(2).([]*model.Link), args.Error(3)
 }
 
 func TestURLService_Create(t *testing.T) {
@@ -95,18 +103,22 @@ func TestURLService_Create(t *testing.T) {
 	dummyPool := &DummyCrawlerPool{}
 	svc := service.NewURLService(mockRepo, dummyPool)
 
-	input := &model.CreateURLInput{
+	input := &model.CreateURLInputDTO{
 		UserID:      1,
 		OriginalURL: "https://example.com",
 	}
 
 	t.Run("Success", func(t *testing.T) {
-		mockRepo.On("Create", mock.MatchedBy(func(u *model.URL) bool {
-			return u.UserID == input.UserID && u.OriginalURL == input.OriginalURL
-		})).Run(func(args mock.Arguments) {
-			url := args.Get(0).(*model.URL)
-			url.ID = 42
-		}).Return(nil).Once()
+		mockRepo.
+			On("Create", mock.MatchedBy(func(u *model.URL) bool {
+				return u.UserID == input.UserID && u.OriginalURL == input.OriginalURL
+			})).
+			Run(func(args mock.Arguments) {
+				url := args.Get(0).(*model.URL)
+				url.ID = 42
+			}).
+			Return(nil).
+			Once()
 
 		id, err := svc.Create(input)
 		assert.NoError(t, err)
@@ -116,9 +128,12 @@ func TestURLService_Create(t *testing.T) {
 
 	t.Run("Repository Error", func(t *testing.T) {
 		expectedErr := errors.New("database error")
-		mockRepo.On("Create", mock.MatchedBy(func(u *model.URL) bool {
-			return u.UserID == input.UserID && u.OriginalURL == input.OriginalURL
-		})).Return(expectedErr).Once()
+		mockRepo.
+			On("Create", mock.MatchedBy(func(u *model.URL) bool {
+				return u.UserID == input.UserID && u.OriginalURL == input.OriginalURL
+			})).
+			Return(expectedErr).
+			Once()
 
 		id, err := svc.Create(input)
 		assert.Error(t, err)
@@ -334,7 +349,6 @@ func TestURLService_Start(t *testing.T) {
 	urlID := uint(100)
 
 	t.Run("Success", func(t *testing.T) {
-		// Now we need to mock the FindByID call first
 		testURL := &model.URL{
 			ID:          urlID,
 			OriginalURL: "http://example.com",
@@ -343,7 +357,7 @@ func TestURLService_Start(t *testing.T) {
 
 		mockRepo.On("FindByID", urlID).Return(testURL, nil).Once()
 		mockRepo.On("UpdateStatus", urlID, model.StatusQueued).Return(nil).Once()
-		mockPool.On("Enqueue", urlID).Once()
+		mockPool.On("Enqueue", urlID).Return().Once()
 
 		err := svc.Start(urlID)
 		assert.NoError(t, err)
@@ -368,7 +382,6 @@ func TestURLService_Start(t *testing.T) {
 			OriginalURL: "http://example.com",
 			Status:      model.StatusQueued,
 		}
-
 		expectedErr := errors.New("update status error")
 		mockRepo.On("FindByID", urlID).Return(testURL, nil).Once()
 		mockRepo.On("UpdateStatus", urlID, model.StatusQueued).Return(expectedErr).Once()
@@ -387,7 +400,6 @@ func TestURLService_Stop(t *testing.T) {
 	urlID := uint(100)
 
 	t.Run("Success", func(t *testing.T) {
-		// Now we need to mock the FindByID call first
 		testURL := &model.URL{
 			ID:          urlID,
 			OriginalURL: "http://example.com",
@@ -419,7 +431,6 @@ func TestURLService_Stop(t *testing.T) {
 			OriginalURL: "http://example.com",
 			Status:      model.StatusRunning,
 		}
-
 		expectedErr := errors.New("update status error")
 		mockRepo.On("FindByID", urlID).Return(testURL, nil).Once()
 		mockRepo.On("UpdateStatus", urlID, model.StatusError).Return(expectedErr).Once()
@@ -451,4 +462,43 @@ func TestURLService_Results(t *testing.T) {
 	assert.Equal(t, uint(99), dto.UserID)
 	assert.Equal(t, "https://results.test", dto.OriginalURL)
 	mockRepo.AssertExpectations(t)
+}
+
+func TestURLService_ResultsWithDetails(t *testing.T) {
+	mockRepo := new(MockURLRepo)
+	dummyPool := &DummyCrawlerPool{}
+	svc := service.NewURLService(mockRepo, dummyPool)
+	urlID := uint(77)
+
+	// Prepare dummy detailed data
+	testURL := &model.URL{
+		ID:          urlID,
+		UserID:      101,
+		OriginalURL: "https://detailed.test",
+		Status:      "completed",
+		CreatedAt:   mustParseTime("2025-07-11T00:00:00Z"),
+		UpdatedAt:   mustParseTime("2025-07-11T01:00:00Z"),
+	}
+	analysisResults := []*model.AnalysisResult{} // empty slice for test
+	links := []*model.Link{}                     // empty slice for test
+
+	mockRepo.On("ResultsWithDetails", urlID).
+		Return(testURL, analysisResults, links, nil).
+		Once()
+
+	urlOut, ars, ls, err := svc.ResultsWithDetails(urlID)
+	require.NoError(t, err)
+	assert.Equal(t, urlID, urlOut.ID)
+	assert.Empty(t, ars)
+	assert.Empty(t, ls)
+	mockRepo.AssertExpectations(t)
+}
+
+// mustParseTime is a helper to parse RFC3339 time and panic on error.
+func mustParseTime(s string) time.Time {
+	parsed, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		panic(fmt.Sprintf("failed to parse time: %s", s))
+	}
+	return parsed
 }

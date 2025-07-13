@@ -283,4 +283,83 @@ func TestURLRepo(t *testing.T) {
 		assert.Equal(t, "https://results.test", u.OriginalURL)
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
+	t.Run("ResultsWithDetails", func(t *testing.T) {
+		db, mock := setupMockDB(t)
+		repo := repository.NewURLRepo(db)
+		id := uint(15)
+
+		// Expected JSON response returned by the raw query.
+		// Adjust the values below to match your expected structure.
+		expectedJSON := `{"url":{"id":15,"user_id":99,"original_url":"https://results.test","status":"completed","created_at":"2025-07-11T00:00:00.000000Z","updated_at":"2025-07-11T00:00:00.000000Z"},"analysis_results":[],"links":[]}`
+
+		mock.ExpectQuery(regexp.QuoteMeta(
+			`SELECT
+  JSON_OBJECT(
+    'url',
+      JSON_OBJECT(
+        'id',           u.id,
+        'user_id',      u.user_id,
+        'original_url', u.original_url,
+        'status',       u.status,
+        'created_at',   DATE_FORMAT(u.created_at, '%Y-%m-%dT%H:%i:%s.%fZ'),
+        'updated_at',   DATE_FORMAT(u.updated_at, '%Y-%m-%dT%H:%i:%s.%fZ')
+      ),
+    'analysis_results',
+      (
+        SELECT JSON_ARRAYAGG(
+                 JSON_OBJECT(
+                   'id',                  ar.id,
+                   'url_id',              ar.url_id,
+                   'html_version',        ar.html_version,
+                   'title',               ar.title,
+                   'h1_count',            ar.h1_count,
+                   'h2_count',            ar.h2_count,
+                   'h3_count',            ar.h3_count,
+                   'h4_count',            ar.h4_count,
+                   'h5_count',            ar.h5_count,
+                   'h6_count',            ar.h6_count,
+                   'has_login_form',      IF(ar.has_login_form = 1, CAST('true' AS JSON), CAST('false' AS JSON)),
+                   'internal_link_count', ar.internal_link_count,
+                   'external_link_count', ar.external_link_count,
+                   'broken_link_count',   ar.broken_link_count,
+                   'created_at',          DATE_FORMAT(ar.created_at, '%Y-%m-%dT%H:%i:%s.%fZ'),
+                   'updated_at',          DATE_FORMAT(ar.updated_at, '%Y-%m-%dT%H:%i:%s.%fZ')
+                 )
+               )
+        FROM   analysis_results ar
+        WHERE  ar.url_id = u.id
+        ORDER BY ar.created_at DESC
+      ),
+    'links',
+      (
+        SELECT JSON_ARRAYAGG(
+                 JSON_OBJECT(
+                   'id',          l.id,
+                   'url_id',      l.url_id,
+                   'href',        l.href,
+                   'is_external', IF(l.is_external = 1, CAST('true' AS JSON), CAST('false' AS JSON)),
+                   'status_code', l.status_code
+                 )
+               )
+        FROM   links l
+        WHERE  l.url_id = u.id
+      )
+  ) AS result_document
+FROM urls u
+WHERE u.id = ?`)).
+			WithArgs(id).
+			WillReturnRows(sqlmock.NewRows([]string{"result_document"}).AddRow(expectedJSON))
+
+		resultURL, resultAR, resultLinks, err := repo.ResultsWithDetails(id)
+		assert.NoError(t, err)
+		// Check URL fields
+		assert.Equal(t, uint(15), resultURL.ID)
+		assert.Equal(t, uint(99), resultURL.UserID)
+		assert.Equal(t, "https://results.test", resultURL.OriginalURL)
+		assert.Equal(t, "completed", resultURL.Status)
+		// Check that analysis results and links arrays are empty
+		assert.Len(t, resultAR, 0)
+		assert.Len(t, resultLinks, 0)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
 }
