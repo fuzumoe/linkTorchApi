@@ -42,6 +42,7 @@ func (r *mockPRepo) FindByID(id uint) (*model.URL, error) {
 	r.findByIDCalls = append(r.findByIDCalls, id)
 	return &model.URL{
 		OriginalURL: "http://example.com",
+		// The repository in this test does not store status, so we let the worker manage it.
 	}, nil
 }
 
@@ -83,17 +84,17 @@ func (a *mockPAnalyzer) Analyze(ctx context.Context, u *url.URL) (*model.Analysi
 
 func TestPool_ProcessTasks(t *testing.T) {
 	// Create a pool with the mock repository and analyzer.
-	mockPRepo := newMockPRepo()
+	mockRepo := newMockPRepo()
 	mockAnal := &mockPAnalyzer{}
 
-	// Create a pool with 2 workers and a buffer size of 10.
-	pool := crawler.New(mockPRepo, mockAnal, 2, 10)
+	// Create a pool with 2 workers, buffer size of 10 and a crawl timeout of 1 second.
+	pool := crawler.New(mockRepo, mockAnal, 2, 10, 1*time.Second)
 
 	// Create a context that can be cancelled.
 	ctx, cancel := context.WithCancel(context.Background())
 
 	t.Run("Start and Enqueue Tasks", func(t *testing.T) {
-		// Start the pool in a goroutine since Start() blocks until context is cancelled.
+		// Start the pool in a goroutine since Start() blocks until the context is cancelled.
 		go pool.Start(ctx)
 
 		// Enqueue several tasks.
@@ -115,21 +116,21 @@ func TestPool_ProcessTasks(t *testing.T) {
 
 	t.Run("Verify Task Processing", func(t *testing.T) {
 		// Check that for each task enqueued, UpdateStatus was called.
-		mockPRepo.mu.Lock()
-		defer mockPRepo.mu.Unlock()
+		mockRepo.mu.Lock()
+		defer mockRepo.mu.Unlock()
 		for _, id := range []uint{1, 2, 3} {
-			statuses, ok := mockPRepo.statusUpdates[id]
+			statuses, ok := mockRepo.statusUpdates[id]
 			require.True(t, ok, "Expected task id %d to have status updates", id)
-			// Expect at least two status updates: one for "running", one for "done".
+			// Expect at least two status updates: one for running and one for done (worker calls UpdateStatus twice).
 			require.GreaterOrEqual(t, len(statuses), 2, "Expected at least two status updates for task id %d", id)
 		}
 
 		// Check that FindByID was called for each task.
 		for _, id := range []uint{1, 2, 3} {
-			assert.Contains(t, mockPRepo.findByIDCalls, id, "Expected FindByID to be called for task id %d", id)
+			assert.Contains(t, mockRepo.findByIDCalls, id, "Expected FindByID to be called for task id %d", id)
 		}
 
 		// Verify SaveResults was called at least once.
-		assert.True(t, mockPRepo.saveResultsCalled, "Expected SaveResults to be called")
+		assert.True(t, mockRepo.saveResultsCalled, "Expected SaveResults to be called")
 	})
 }

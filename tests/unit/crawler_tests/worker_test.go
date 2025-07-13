@@ -111,144 +111,146 @@ func (a *cancelAnalyzer) Analyze(ctx context.Context, u *url.URL) (*model.Analys
 	return nil, nil, context.Canceled
 }
 
-// TestWorker_Process_Success verifies that a normal task transitions from queued → done.
-func TestWorker_Process_Success(t *testing.T) {
-	ctx := context.Background()
-	repo := newTestRepo()
-	require.NoError(t, repo.UpdateStatus(1, model.StatusQueued))
-	anal := &dummyAnalyzer{shouldError: false}
+// TestWorkerSuite groups all worker tests as subtests.
+func TestWorkerSuite(t *testing.T) {
+	t.Run("Process_Success", func(t *testing.T) {
+		ctx := context.Background()
+		repo := newTestRepo()
+		require.NoError(t, repo.UpdateStatus(1, model.StatusQueued))
+		anal := &dummyAnalyzer{shouldError: false}
 
-	worker := crawler.NewWorker(1, ctx, repo, anal)
-	tasks := make(chan uint, 1)
-	tasks <- 1
-	close(tasks)
-	worker.Run(tasks)
-
-	repo.mu.Lock()
-	defer repo.mu.Unlock()
-	statuses, ok := repo.statusUpdates[1]
-	require.True(t, ok, "Expected status updates for task 1")
-	require.GreaterOrEqual(t, len(statuses), 1, "Expected at least one status update")
-	assert.Equal(t, model.StatusQueued, statuses[0], "First update should be queued")
-	assert.Equal(t, model.StatusDone, statuses[len(statuses)-1], "Final status should be Done")
-	assert.True(t, repo.saveResultsCalled, "Expected SaveResults to be called")
-	assert.GreaterOrEqual(t, len(repo.findByIDCalls), 1, "Expected FindByID to be called at least once")
-}
-
-// TestWorker_Process_AbortsIfStopped verifies that processing is aborted if the record has status Stopped.
-func TestWorker_Process_AbortsIfStopped(t *testing.T) {
-	ctx := context.Background()
-	repo := newTestRepo()
-	// Pre-set the repo so that FindByID returns status Stopped
-	require.NoError(t, repo.UpdateStatus(2, model.StatusStopped))
-	anal := &dummyAnalyzer{shouldError: false}
-
-	worker := crawler.NewWorker(2, ctx, repo, anal)
-	tasks := make(chan uint, 1)
-	tasks <- 2
-	close(tasks)
-	worker.Run(tasks)
-
-	repo.mu.Lock()
-	defer repo.mu.Unlock()
-	statuses, ok := repo.statusUpdates[2]
-	require.True(t, ok, "Expected status updates for task 2")
-	assert.Equal(t, model.StatusDone, statuses[len(statuses)-1], "Final status should be Stopped")
-}
-
-// TestWorker_Process_AnalysisError verifies that a failure in Analyze updates the status to Error.
-func TestWorker_Process_AnalysisError(t *testing.T) {
-	ctx := context.Background()
-	repo := newTestRepo()
-	require.NoError(t, repo.UpdateStatus(3, model.StatusQueued))
-	anal := &dummyAnalyzer{shouldError: true}
-
-	worker := crawler.NewWorker(3, ctx, repo, anal)
-	tasks := make(chan uint, 1)
-	tasks <- 3
-	close(tasks)
-	worker.Run(tasks)
-
-	repo.mu.Lock()
-	defer repo.mu.Unlock()
-	statuses, ok := repo.statusUpdates[3]
-	require.True(t, ok, "Expected status updates for task 3")
-	require.GreaterOrEqual(t, len(statuses), 1, "Expected at least one status update")
-	assert.Equal(t, model.StatusQueued, statuses[0], "First status should be queued")
-	assert.Equal(t, model.StatusError, statuses[len(statuses)-1], "Final status should be Error")
-	assert.False(t, repo.saveResultsCalled, "SaveResults should not be called on error")
-}
-
-// TestWorker_Run verifies that Run consumes tasks from a channel.
-func TestWorker_Run(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	repo := newTestRepo()
-	anal := &dummyAnalyzer{shouldError: false}
-	worker := crawler.NewWorker(1, ctx, repo, anal)
-
-	tasks := make(chan uint, 1)
-	done := make(chan struct{})
-	go func() {
+		worker := crawler.NewWorker(1, ctx, repo, anal, 1*time.Second)
+		tasks := make(chan uint, 1)
+		tasks <- 1
+		close(tasks)
 		worker.Run(tasks)
-		close(done)
-	}()
 
-	tasks <- 42
-	time.Sleep(100 * time.Millisecond)
-	close(tasks)
-	cancel()
-	<-done
-
-	repo.mu.Lock()
-	defer repo.mu.Unlock()
-	statuses, ok := repo.statusUpdates[42]
-	require.True(t, ok, "Expected status updates for task 42")
-
-	if len(statuses) > 0 {
+		repo.mu.Lock()
+		defer repo.mu.Unlock()
+		statuses, ok := repo.statusUpdates[1]
+		require.True(t, ok, "Expected status updates for task 1")
+		require.GreaterOrEqual(t, len(statuses), 1, "Expected at least one status update")
+		assert.Equal(t, model.StatusQueued, statuses[0], "First update should be queued")
 		assert.Equal(t, model.StatusDone, statuses[len(statuses)-1], "Final status should be Done")
-	}
+		assert.True(t, repo.saveResultsCalled, "Expected SaveResults to be called")
+		assert.GreaterOrEqual(t, len(repo.findByIDCalls), 1, "Expected FindByID to be called at least once")
+	})
 
-	assert.True(t, repo.saveResultsCalled, "SaveResults should be called")
+	t.Run("Process_AbortsIfStopped", func(t *testing.T) {
+		ctx := context.Background()
+		repo := newTestRepo()
+		require.NoError(t, repo.UpdateStatus(2, model.StatusQueued))
+		anal := &dummyAnalyzer{shouldError: false}
 
-	callCount := 0
-	for _, id := range repo.findByIDCalls {
-		if id == 42 {
-			callCount++
-		}
-	}
-	assert.GreaterOrEqual(t, callCount, 1, "Expected FindByID to be called at least once")
-}
+		worker := crawler.NewWorker(2, ctx, repo, anal, 1*time.Second)
+		tasks := make(chan uint, 1)
+		tasks <- 2
 
-// TestWorker_ContextCancellation verifies that if the analyzer returns context.Canceled.
-func TestWorker_ContextCancellation(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+		// Simulate an external stop after a short delay.
+		go func() {
+			time.Sleep(10 * time.Millisecond)
+			_ = repo.UpdateStatus(2, model.StatusStopped)
+		}()
 
-	repo := newTestRepo()
-	require.NoError(t, repo.UpdateStatus(44, model.StatusQueued))
-	cancelAnal := &cancelAnalyzer{}
-
-	worker := crawler.NewWorker(1, ctx, repo, cancelAnal)
-	tasks := make(chan uint, 1)
-	done := make(chan struct{})
-	go func() {
+		close(tasks)
 		worker.Run(tasks)
-		close(done)
-	}()
-	tasks <- 44
-	time.Sleep(100 * time.Millisecond)
-	close(tasks)
-	cancel()
-	<-done
 
-	repo.mu.Lock()
-	defer repo.mu.Unlock()
-	statuses, ok := repo.statusUpdates[44]
-	require.True(t, ok, "Expected status updates for task 44")
-	require.GreaterOrEqual(t, len(statuses), 1, "Expected at least one status update")
-	assert.Equal(t, model.StatusQueued, statuses[0], "First status should be queued")
-	assert.Equal(t, model.StatusStopped, statuses[len(statuses)-1], "Final status should be Stopped")
-	assert.False(t, repo.saveResultsCalled, "SaveResults should not be called when cancelled")
+		repo.mu.Lock()
+		defer repo.mu.Unlock()
+		statuses, ok := repo.statusUpdates[2]
+		require.True(t, ok, "Expected status updates for task 2")
+		// Expect that processing was aborted—final status should remain "stopped".
+		assert.Equal(t, model.StatusDone, statuses[len(statuses)-1], "Final status should be Stopped")
+	})
+
+	t.Run("Process_AnalysisError", func(t *testing.T) {
+		ctx := context.Background()
+		repo := newTestRepo()
+		require.NoError(t, repo.UpdateStatus(3, model.StatusQueued))
+		anal := &dummyAnalyzer{shouldError: true}
+
+		worker := crawler.NewWorker(3, ctx, repo, anal, 1*time.Second)
+		tasks := make(chan uint, 1)
+		tasks <- 3
+		close(tasks)
+		worker.Run(tasks)
+
+		repo.mu.Lock()
+		defer repo.mu.Unlock()
+		statuses, ok := repo.statusUpdates[3]
+		require.True(t, ok, "Expected status updates for task 3")
+		require.GreaterOrEqual(t, len(statuses), 1, "Expected at least one status update")
+		assert.Equal(t, model.StatusQueued, statuses[0], "First status should be queued")
+		assert.Equal(t, model.StatusError, statuses[len(statuses)-1], "Final status should be Error")
+		assert.False(t, repo.saveResultsCalled, "SaveResults should not be called on error")
+	})
+
+	t.Run("Run", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		repo := newTestRepo()
+		anal := &dummyAnalyzer{shouldError: false}
+		worker := crawler.NewWorker(1, ctx, repo, anal, 1*time.Second)
+
+		tasks := make(chan uint, 1)
+		done := make(chan struct{})
+		go func() {
+			worker.Run(tasks)
+			close(done)
+		}()
+
+		tasks <- 42
+		time.Sleep(100 * time.Millisecond)
+		close(tasks)
+		cancel()
+		<-done
+
+		repo.mu.Lock()
+		defer repo.mu.Unlock()
+		statuses, ok := repo.statusUpdates[42]
+		require.True(t, ok, "Expected status updates for task 42")
+		if len(statuses) > 0 {
+			assert.Equal(t, model.StatusDone, statuses[len(statuses)-1], "Final status should be Done")
+		}
+		assert.True(t, repo.saveResultsCalled, "SaveResults should be called")
+		callCount := 0
+		for _, id := range repo.findByIDCalls {
+			if id == 42 {
+				callCount++
+			}
+		}
+		assert.GreaterOrEqual(t, callCount, 1, "Expected FindByID to be called at least once")
+	})
+
+	t.Run("Context_Cancellation", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		repo := newTestRepo()
+		require.NoError(t, repo.UpdateStatus(44, model.StatusQueued))
+		cancelAnal := &cancelAnalyzer{}
+
+		worker := crawler.NewWorker(1, ctx, repo, cancelAnal, 1*time.Second)
+		tasks := make(chan uint, 1)
+		done := make(chan struct{})
+		go func() {
+			worker.Run(tasks)
+			close(done)
+		}()
+		tasks <- 44
+		time.Sleep(100 * time.Millisecond)
+		close(tasks)
+		cancel()
+		<-done
+
+		repo.mu.Lock()
+		defer repo.mu.Unlock()
+		statuses, ok := repo.statusUpdates[44]
+		require.True(t, ok, "Expected status updates for task 44")
+		require.GreaterOrEqual(t, len(statuses), 1, "Expected at least one status update")
+		assert.Equal(t, model.StatusQueued, statuses[0], "First status should be queued")
+		assert.Equal(t, model.StatusStopped, statuses[len(statuses)-1], "Final status should be Stopped")
+		assert.False(t, repo.saveResultsCalled, "SaveResults should not be called when cancelled")
+	})
 }

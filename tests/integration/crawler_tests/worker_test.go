@@ -32,7 +32,6 @@ func (a *dummyAnalyzer) Analyze(ctx context.Context, u *url.URL) (*model.Analysi
 type slowDummyAnalyzer struct{}
 
 func (a *slowDummyAnalyzer) Analyze(ctx context.Context, u *url.URL) (*model.AnalysisResult, []model.Link, error) {
-
 	select {
 	case <-ctx.Done():
 		return nil, nil, ctx.Err()
@@ -82,7 +81,8 @@ func TestWorkerIntegration(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			worker := crawler.NewWorker(1, ctx, urlRepo, analyzer)
+			// Updated: Pass a crawl timeout (1 second) to the NewWorker constructor.
+			worker := crawler.NewWorker(1, ctx, urlRepo, analyzer, 1*time.Second)
 
 			tasks := make(chan uint, 1)
 			workerDone := make(chan struct{})
@@ -126,7 +126,8 @@ func TestWorkerIntegration(t *testing.T) {
 
 			t.Run("Saved Links", func(t *testing.T) {
 				var count int64
-				err := db.Raw("SELECT COUNT(*) FROM links WHERE url_id = ?", url.ID).Count(&count).Error
+				// Using GORM's Model count function.
+				err := db.Model(&model.Link{}).Where("url_id = ?", url.ID).Count(&count).Error
 				require.NoError(t, err, "Should be able to count links")
 				assert.Greater(t, count, int64(0), "At least one link should be saved")
 			})
@@ -163,7 +164,8 @@ func TestWorkerIntegration(t *testing.T) {
 
 			ctx, cancel := context.WithCancel(context.Background())
 
-			worker := crawler.NewWorker(2, ctx, urlRepo, slowAnalyzer)
+			// Updated: Pass crawlTimeout parameter.
+			worker := crawler.NewWorker(2, ctx, urlRepo, slowAnalyzer, 1*time.Second)
 			tasks := make(chan uint, 1)
 			workerDone := make(chan struct{})
 
