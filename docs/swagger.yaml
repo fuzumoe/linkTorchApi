@@ -1,0 +1,515 @@
+basePath: /api/v1
+definitions:
+  handler.LoginRequest:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  handler.RegisterRequest:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+      username:
+        type: string
+    required:
+    - email
+    - password
+    - username
+    type: object
+  model.AnalysisResult:
+    properties:
+      broken_link_count:
+        type: integer
+      created_at:
+        type: string
+      external_link_count:
+        type: integer
+      h1_count:
+        type: integer
+      h2_count:
+        type: integer
+      h3_count:
+        type: integer
+      h4_count:
+        type: integer
+      h5_count:
+        type: integer
+      h6_count:
+        type: integer
+      has_login_form:
+        type: boolean
+      html_version:
+        type: string
+      id:
+        type: integer
+      internal_link_count:
+        type: integer
+      title:
+        type: string
+      updated_at:
+        type: string
+      url_id:
+        type: integer
+    type: object
+  model.Link:
+    properties:
+      created_at:
+        type: string
+      href:
+        type: string
+      id:
+        type: integer
+      is_external:
+        type: boolean
+      status_code:
+        type: integer
+      updated_at:
+        type: string
+      url_id:
+        type: integer
+    type: object
+  model.URLCreateRequestDTO:
+    properties:
+      original_url:
+        example: https://example.com
+        type: string
+    required:
+    - original_url
+    type: object
+  model.URLDTO:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: integer
+      original_url:
+        type: string
+      status:
+        enum:
+        - queued
+        - running
+        - done
+        - error
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  model.URLResultsDTO:
+    properties:
+      analysis_results:
+        items:
+          $ref: '#/definitions/model.AnalysisResult'
+        type: array
+      links:
+        items:
+          $ref: '#/definitions/model.Link'
+        type: array
+      url:
+        $ref: '#/definitions/model.URLDTO'
+    type: object
+  model.UpdateURLInput:
+    properties:
+      original_url:
+        type: string
+      status:
+        enum:
+        - queued
+        - running
+        - done
+        - error
+        type: string
+    type: object
+host: localhost:8090
+info:
+  contact: {}
+  description: Basic Authentication with username and password
+  title: URL Insight API
+  version: "1.0"
+paths:
+  /health:
+    get:
+      description: Get the status of server and database connection
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Healthy service with database connection
+          schema:
+            additionalProperties: true
+            type: object
+        "503":
+          description: Service available but database connection issues
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Check service health
+      tags:
+      - health
+  /login/basic:
+    post:
+      description: |-
+        Authenticates a user using Basic Authorization header and returns a JWT token
+        Requires "Authorization: Basic base64(email:password)" header
+      parameters:
+      - description: Basic base64(email:password)
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: JWT token generated
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid request or login error
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Authentication failed
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Login via Basic Auth header and generate JWT token
+      tags:
+      - auth
+  /login/jwt:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Authenticates a user using email and password provided in JSON and returns a JWT token
+        Example request: {"email": "user@example.com", "password": "userpassword"}
+        Example response: {"token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."}
+      parameters:
+      - description: Login request payload
+        in: body
+        name: loginRequest
+        required: true
+        schema:
+          $ref: '#/definitions/handler.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: JWT token generated
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid request or login error
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Authentication failed
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Login via JSON payload and generate JWT token
+      tags:
+      - auth
+  /logout:
+    post:
+      description: Invalidates the current JWT token so it can no longer be used
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Logout message
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid token or request
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - JWTAuth: []
+      - BasicAuth: []
+      summary: Logout and invalidate JWT token
+      tags:
+      - auth
+  /register:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new user, then generates and returns a JWT token for
+        the user
+      parameters:
+      - description: Register request payload
+        in: body
+        name: registerRequest
+        required: true
+        schema:
+          $ref: '#/definitions/handler.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: User registered and JWT token generated
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid request or registration error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - JWTAuth: []
+      - BasicAuth: []
+      summary: Register a new user and generate JWT token
+      tags:
+      - auth
+  /status:
+    get:
+      description: Returns a welcome message and service status
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Returns message, service name, and status
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Root endpoint
+      tags:
+      - health
+  /urls:
+    get:
+      parameters:
+      - default: 1
+        description: page
+        example: 1
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: page_size
+        example: 10
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/model.URLDTO'
+            type: array
+      security:
+      - JWTAuth: []
+      - BasicAuth: []
+      summary: List URLs (paginated)
+      tags:
+      - urls
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: URL to crawl
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/model.URLCreateRequestDTO'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: '{id}'
+          schema:
+            additionalProperties:
+              type: integer
+            type: object
+        "400":
+          description: error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - JWTAuth: []
+      - BasicAuth: []
+      summary: Create URL row
+      tags:
+      - urls
+  /urls/{id}:
+    delete:
+      parameters:
+      - description: URL ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: deleted
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - JWTAuth: []
+      - BasicAuth: []
+      summary: Delete URL row
+      tags:
+      - urls
+    get:
+      parameters:
+      - description: URL ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.URLDTO'
+      security:
+      - JWTAuth: []
+      - BasicAuth: []
+      summary: Get one URL row
+      tags:
+      - urls
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: URL ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: fields
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/model.UpdateURLInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: updated
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - JWTAuth: []
+      - BasicAuth: []
+      summary: Update URL row
+      tags:
+      - urls
+  /urls/{id}/results:
+    get:
+      parameters:
+      - description: URL ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.URLResultsDTO'
+        "400":
+          description: bad request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - JWTAuth: []
+      - BasicAuth: []
+      summary: Latest analysis snapshot + links
+      tags:
+      - urls
+  /urls/{id}/start:
+    patch:
+      parameters:
+      - description: URL ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: queued
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - JWTAuth: []
+      - BasicAuth: []
+      summary: Start crawl
+      tags:
+      - urls
+  /urls/{id}/stop:
+    patch:
+      parameters:
+      - description: URL ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: stopped
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - JWTAuth: []
+      - BasicAuth: []
+      summary: Stop crawl
+      tags:
+      - urls
+securityDefinitions:
+  BasicAuth:
+    type: basic
+  JWTAuth:
+    description: JWT Authentication token, prefixed with "Bearer " followed by the
+      token
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
