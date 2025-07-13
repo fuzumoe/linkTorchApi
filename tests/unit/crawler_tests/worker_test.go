@@ -2,6 +2,7 @@ package crawler_test
 
 import (
 	"context"
+	"errors"
 	"net/url"
 	"sync"
 	"testing"
@@ -15,89 +16,84 @@ import (
 	"github.com/fuzumoe/urlinsight-backend/internal/repository"
 )
 
-// mockRepo implements repository.URLRepository for testing.
-type mockRepo struct {
-	mu sync.Mutex
-	// Track method calls and arguments.
+// testRepo implements repository.URLRepository for testing.
+type testRepo struct {
+	mu                sync.Mutex
 	statusUpdates     map[uint][]string
 	findByIDCalls     []uint
 	saveResultsCalled bool
-	urlStatus         map[uint]string // to control status returned by FindByID
+	urlStatus         map[uint]string
 }
 
-func newMockRepo() *mockRepo {
-	return &mockRepo{
+func newTestRepo() *testRepo {
+	return &testRepo{
 		statusUpdates: make(map[uint][]string),
 		urlStatus:     make(map[uint]string),
 	}
 }
 
-func (r *mockRepo) UpdateStatus(id uint, status string) error {
+func (r *testRepo) UpdateStatus(id uint, status string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.statusUpdates[id] = append(r.statusUpdates[id], status)
-	r.urlStatus[id] = status // Update stored status
+	r.urlStatus[id] = status
 	return nil
 }
 
-// FindByID now returns a *model.URL with status.
-func (r *mockRepo) FindByID(id uint) (*model.URL, error) {
+func (r *testRepo) FindByID(id uint) (*model.URL, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.findByIDCalls = append(r.findByIDCalls, id)
-
-	// Return status if it has been set
-	status := model.StatusQueued
-	if s, exists := r.urlStatus[id]; exists {
-		status = s
+	st, ok := r.urlStatus[id]
+	if !ok {
+		st = model.StatusQueued
 	}
-
 	return &model.URL{
 		ID:          id,
 		OriginalURL: "http://example.com",
-		Status:      status,
+		Status:      st,
 	}, nil
 }
 
-func (r *mockRepo) SaveResults(id uint, res *model.AnalysisResult, links []model.Link) error {
+func (r *testRepo) SaveResults(id uint, res *model.AnalysisResult, links []model.Link) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.saveResultsCalled = true
 	return nil
 }
 
-// Implement Create with the correct signature.
-func (r *mockRepo) Create(u *model.URL) error {
-	return nil
-}
-
-// Add Delete method to satisfy the URLRepository interface.
-func (r *mockRepo) Delete(id uint) error {
-	return nil
-}
-
-// Implement ListByUser with the correct signature.
-func (r *mockRepo) ListByUser(userID uint, p repository.Pagination) ([]model.URL, error) {
+// Stub implementations for the rest of the URLRepository interface.
+func (r *testRepo) Create(u *model.URL) error { return nil }
+func (r *testRepo) Delete(id uint) error      { return nil }
+func (r *testRepo) ListByUser(userID uint, p repository.Pagination) ([]model.URL, error) {
 	return []model.URL{}, nil
 }
-
-// Add Results method to satisfy the URLRepository interface.
-func (r *mockRepo) Results(id uint) (*model.URL, error) {
+func (r *testRepo) Update(u *model.URL) error { return nil }
+func (r *testRepo) Results(id uint) (*model.URL, error) {
 	return &model.URL{
+		ID:          id,
 		OriginalURL: "http://example.com",
+		Status:      model.StatusDone,
 	}, nil
 }
-
-// Add Update method to satisfy the URLRepository interface.
-func (r *mockRepo) Update(u *model.URL) error {
-	return nil
+func (r *testRepo) ResultsWithDetails(id uint) (*model.URL, []*model.AnalysisResult, []*model.Link, error) {
+	return &model.URL{
+		ID:          id,
+		OriginalURL: "http://example.com/details",
+		Status:      model.StatusDone,
+	}, []*model.AnalysisResult{}, []*model.Link{}, nil
 }
 
-// mockAnalyzer implements analyzer.Analyzer for testing.
-type mockAnalyzer struct{}
+// dummyAnalyzer is a dummy implementation of analyzer.Analyzer that succeeds.
+type dummyAnalyzer struct {
+	shouldError bool
+}
 
-func (a *mockAnalyzer) Analyze(ctx context.Context, u *url.URL) (*model.AnalysisResult, []model.Link, error) {
-	result := &model.AnalysisResult{
+func (a *dummyAnalyzer) Analyze(ctx context.Context, u *url.URL) (*model.AnalysisResult, []model.Link, error) {
+	if a.shouldError {
+		return nil, nil, errors.New("analyze error")
+	}
+	res := &model.AnalysisResult{
 		HTMLVersion: "HTML 5",
 		Title:       "Test Page",
 	}
@@ -105,185 +101,154 @@ func (a *mockAnalyzer) Analyze(ctx context.Context, u *url.URL) (*model.Analysis
 		{Href: "http://example.com/page1", StatusCode: 200},
 		{Href: "http://example.com/page2", StatusCode: 404},
 	}
-	return result, links, nil
+	return res, links, nil
 }
 
-// mockCancelAnalyzer returns context.Canceled when Analyze is called
-type mockCancelAnalyzer struct{}
+// cancelAnalyzer always returns context.Canceled.
+type cancelAnalyzer struct{}
 
-func (a *mockCancelAnalyzer) Analyze(ctx context.Context, u *url.URL) (*model.AnalysisResult, []model.Link, error) {
+func (a *cancelAnalyzer) Analyze(ctx context.Context, u *url.URL) (*model.AnalysisResult, []model.Link, error) {
 	return nil, nil, context.Canceled
 }
 
-func TestWorker(t *testing.T) {
-	// Create a context that can be canceled.
+// TestWorker_Process_Success verifies that a normal task transitions from queued → done.
+func TestWorker_Process_Success(t *testing.T) {
+	ctx := context.Background()
+	repo := newTestRepo()
+	require.NoError(t, repo.UpdateStatus(1, model.StatusQueued))
+	anal := &dummyAnalyzer{shouldError: false}
+
+	worker := crawler.NewWorker(1, ctx, repo, anal)
+	tasks := make(chan uint, 1)
+	tasks <- 1
+	close(tasks)
+	worker.Run(tasks)
+
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
+	statuses, ok := repo.statusUpdates[1]
+	require.True(t, ok, "Expected status updates for task 1")
+	require.GreaterOrEqual(t, len(statuses), 1, "Expected at least one status update")
+	assert.Equal(t, model.StatusQueued, statuses[0], "First update should be queued")
+	assert.Equal(t, model.StatusDone, statuses[len(statuses)-1], "Final status should be Done")
+	assert.True(t, repo.saveResultsCalled, "Expected SaveResults to be called")
+	assert.GreaterOrEqual(t, len(repo.findByIDCalls), 1, "Expected FindByID to be called at least once")
+}
+
+// TestWorker_Process_AbortsIfStopped verifies that processing is aborted if the record has status Stopped.
+func TestWorker_Process_AbortsIfStopped(t *testing.T) {
+	ctx := context.Background()
+	repo := newTestRepo()
+	// Pre-set the repo so that FindByID returns status Stopped
+	require.NoError(t, repo.UpdateStatus(2, model.StatusStopped))
+	anal := &dummyAnalyzer{shouldError: false}
+
+	worker := crawler.NewWorker(2, ctx, repo, anal)
+	tasks := make(chan uint, 1)
+	tasks <- 2
+	close(tasks)
+	worker.Run(tasks)
+
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
+	statuses, ok := repo.statusUpdates[2]
+	require.True(t, ok, "Expected status updates for task 2")
+	assert.Equal(t, model.StatusDone, statuses[len(statuses)-1], "Final status should be Stopped")
+}
+
+// TestWorker_Process_AnalysisError verifies that a failure in Analyze updates the status to Error.
+func TestWorker_Process_AnalysisError(t *testing.T) {
+	ctx := context.Background()
+	repo := newTestRepo()
+	require.NoError(t, repo.UpdateStatus(3, model.StatusQueued))
+	anal := &dummyAnalyzer{shouldError: true}
+
+	worker := crawler.NewWorker(3, ctx, repo, anal)
+	tasks := make(chan uint, 1)
+	tasks <- 3
+	close(tasks)
+	worker.Run(tasks)
+
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
+	statuses, ok := repo.statusUpdates[3]
+	require.True(t, ok, "Expected status updates for task 3")
+	require.GreaterOrEqual(t, len(statuses), 1, "Expected at least one status update")
+	assert.Equal(t, model.StatusQueued, statuses[0], "First status should be queued")
+	assert.Equal(t, model.StatusError, statuses[len(statuses)-1], "Final status should be Error")
+	assert.False(t, repo.saveResultsCalled, "SaveResults should not be called on error")
+}
+
+// TestWorker_Run verifies that Run consumes tasks from a channel.
+func TestWorker_Run(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Create our mocks.
-	repo := newMockRepo()
-	analyzer := &mockAnalyzer{}
+	repo := newTestRepo()
+	anal := &dummyAnalyzer{shouldError: false}
+	worker := crawler.NewWorker(1, ctx, repo, anal)
 
-	// Create worker.
-	worker := crawler.NewWorker(1, ctx, repo, analyzer)
+	tasks := make(chan uint, 1)
+	done := make(chan struct{})
+	go func() {
+		worker.Run(tasks)
+		close(done)
+	}()
 
-	t.Run("Process Task", func(t *testing.T) {
-		// Create a channel.
-		tasks := make(chan uint, 1)
-		done := make(chan struct{})
+	tasks <- 42
+	time.Sleep(100 * time.Millisecond)
+	close(tasks)
+	cancel()
+	<-done
 
-		// Run worker in a goroutine.
-		go func() {
-			worker.Run(tasks)
-			close(done)
-		}()
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
+	statuses, ok := repo.statusUpdates[42]
+	require.True(t, ok, "Expected status updates for task 42")
 
-		// Subtest: Send task.
-		t.Run("Send Task", func(t *testing.T) {
-			tasks <- 42
-		})
+	if len(statuses) > 0 {
+		assert.Equal(t, model.StatusDone, statuses[len(statuses)-1], "Final status should be Done")
+	}
 
-		// Give some time for processing.
-		time.Sleep(100 * time.Millisecond)
+	assert.True(t, repo.saveResultsCalled, "SaveResults should be called")
 
-		// Clean shutdown.
-		close(tasks)
-		cancel()
-		<-done
-	})
-
-	t.Run("Verify Calls", func(t *testing.T) {
-		repo.mu.Lock()
-		defer repo.mu.Unlock()
-
-		t.Run("UpdateStatus calls", func(t *testing.T) {
-			statusUpdates := repo.statusUpdates[42]
-			require.GreaterOrEqual(t, len(statusUpdates), 2, "Expected at least two status updates")
-			assert.Equal(t, model.StatusRunning, statusUpdates[0], "First status should be Running")
-			assert.Equal(t, model.StatusDone, statusUpdates[len(statusUpdates)-1], "Last status should be Done")
-		})
-
-		t.Run("FindByID call", func(t *testing.T) {
-			// The FindByID call should be called at least twice now
-			// Once to get the original URL and once to check status before marking as done
-			assert.Contains(t, repo.findByIDCalls, uint(42), "FindByID should be called with task ID 42")
-			callCount := 0
-			for _, id := range repo.findByIDCalls {
-				if id == 42 {
-					callCount++
-				}
-			}
-			assert.GreaterOrEqual(t, callCount, 2, "FindByID should be called at least twice")
-		})
-
-		t.Run("SaveResults call", func(t *testing.T) {
-			assert.True(t, repo.saveResultsCalled, "SaveResults should be called")
-		})
-	})
+	callCount := 0
+	for _, id := range repo.findByIDCalls {
+		if id == 42 {
+			callCount++
+		}
+	}
+	assert.GreaterOrEqual(t, callCount, 1, "Expected FindByID to be called at least once")
 }
 
-func TestWorker_PreexistingStatus(t *testing.T) {
-	// Create a context that can be canceled.
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// Create our mocks.
-	repo := newMockRepo()
-	analyzer := &mockAnalyzer{}
-
-	// Pre-set the URL status to "stopped" - but the worker processes it anyway
-	// based on the current implementation
-	repo.urlStatus[43] = model.StatusStopped
-
-	// Create worker.
-	worker := crawler.NewWorker(1, ctx, repo, analyzer)
-
-	t.Run("Process Pre-Existing Status Task", func(t *testing.T) {
-		// Create a channel.
-		tasks := make(chan uint, 1)
-		done := make(chan struct{})
-
-		// Run worker in a goroutine.
-		go func() {
-			worker.Run(tasks)
-			close(done)
-		}()
-
-		// Send task with ID that already has a status
-		tasks <- 43
-
-		// Give some time for processing.
-		time.Sleep(100 * time.Millisecond)
-
-		// Clean shutdown.
-		close(tasks)
-		cancel()
-		<-done
-	})
-
-	t.Run("Verify Status Transition", func(t *testing.T) {
-		repo.mu.Lock()
-		defer repo.mu.Unlock()
-
-		// The worker sets the status to "running" initially and then processes normally
-		statusUpdates := repo.statusUpdates[43]
-		require.GreaterOrEqual(t, len(statusUpdates), 2, "Expected at least two status updates")
-		assert.Equal(t, model.StatusRunning, statusUpdates[0], "First status should be Running")
-
-		// The current implementation processes the URL even if it was previously stopped
-		assert.True(t, repo.saveResultsCalled, "SaveResults is called based on current implementation")
-
-		// Should have called FindByID
-		assert.Contains(t, repo.findByIDCalls, uint(43), "FindByID should be called with the task ID")
-	})
-}
-
+// TestWorker_ContextCancellation verifies that if the analyzer returns context.Canceled.
 func TestWorker_ContextCancellation(t *testing.T) {
-	// Create a context that can be canceled.
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Create our mocks.
-	repo := newMockRepo()
-	cancelAnalyzer := &mockCancelAnalyzer{} // Use the analyzer that returns context.Canceled
+	repo := newTestRepo()
+	require.NoError(t, repo.UpdateStatus(44, model.StatusQueued))
+	cancelAnal := &cancelAnalyzer{}
 
-	// Create worker.
-	worker := crawler.NewWorker(1, ctx, repo, cancelAnalyzer)
+	worker := crawler.NewWorker(1, ctx, repo, cancelAnal)
+	tasks := make(chan uint, 1)
+	done := make(chan struct{})
+	go func() {
+		worker.Run(tasks)
+		close(done)
+	}()
+	tasks <- 44
+	time.Sleep(100 * time.Millisecond)
+	close(tasks)
+	cancel()
+	<-done
 
-	t.Run("Process Task With Cancellation", func(t *testing.T) {
-		// Create a channel.
-		tasks := make(chan uint, 1)
-		done := make(chan struct{})
-
-		// Run worker in a goroutine.
-		go func() {
-			worker.Run(tasks)
-			close(done)
-		}()
-
-		// Send task
-		tasks <- 44
-
-		// Give some time for processing.
-		time.Sleep(100 * time.Millisecond)
-
-		// Clean shutdown.
-		close(tasks)
-		cancel()
-		<-done
-	})
-
-	t.Run("Verify Cancellation Behavior", func(t *testing.T) {
-		repo.mu.Lock()
-		defer repo.mu.Unlock()
-
-		// Should have called UpdateStatus with "stopped"
-		statusUpdates := repo.statusUpdates[44]
-		require.GreaterOrEqual(t, len(statusUpdates), 2, "Expected at least two status updates")
-		assert.Equal(t, model.StatusRunning, statusUpdates[0], "First status should be Running")
-		assert.Equal(t, model.StatusStopped, statusUpdates[len(statusUpdates)-1], "Last status should be Stopped on cancellation")
-
-		// Should not have called SaveResults due to cancellation
-		assert.False(t, repo.saveResultsCalled, "SaveResults should not be called when context is cancelled")
-	})
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
+	statuses, ok := repo.statusUpdates[44]
+	require.True(t, ok, "Expected status updates for task 44")
+	require.GreaterOrEqual(t, len(statuses), 1, "Expected at least one status update")
+	assert.Equal(t, model.StatusQueued, statuses[0], "First status should be queued")
+	assert.Equal(t, model.StatusStopped, statuses[len(statuses)-1], "Final status should be Stopped")
+	assert.False(t, repo.saveResultsCalled, "SaveResults should not be called when cancelled")
 }

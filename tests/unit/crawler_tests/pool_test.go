@@ -52,38 +52,24 @@ func (r *mockPRepo) SaveResults(id uint, res *model.AnalysisResult, links []mode
 	return nil
 }
 
-// Implement Create with the correct signature.
-func (r *mockPRepo) Create(u *model.URL) error {
-	return nil
-}
-
-// Delete method.
-func (r *mockPRepo) Delete(id uint) error {
-	return nil
-}
-
-// ListByUser with the correct signature.
+// Stub implementations for the rest of URLRepository.
+func (r *mockPRepo) Create(u *model.URL) error { return nil }
+func (r *mockPRepo) Delete(id uint) error      { return nil }
 func (r *mockPRepo) ListByUser(userID uint, p repository.Pagination) ([]model.URL, error) {
 	return []model.URL{}, nil
 }
-
-// Results returns a dummy URL.
+func (r *mockPRepo) Update(u *model.URL) error { return nil }
 func (r *mockPRepo) Results(id uint) (*model.URL, error) {
-	return &model.URL{
-		OriginalURL: "http://example.com",
-	}, nil
+	return &model.URL{OriginalURL: "http://example.com"}, nil
 }
-
-// Update method.
-func (r *mockPRepo) Update(u *model.URL) error {
-	return nil
+func (r *mockPRepo) ResultsWithDetails(id uint) (*model.URL, []*model.AnalysisResult, []*model.Link, error) {
+	return &model.URL{OriginalURL: "http://example.com/details"}, []*model.AnalysisResult{}, []*model.Link{}, nil
 }
 
 // mockPAnalyzer implements analyzer.Analyzer for testing.
 type mockPAnalyzer struct{}
 
 func (a *mockPAnalyzer) Analyze(ctx context.Context, u *url.URL) (*model.AnalysisResult, []model.Link, error) {
-
 	result := &model.AnalysisResult{
 		HTMLVersion: "HTML 5",
 		Title:       "Test Page",
@@ -103,12 +89,11 @@ func TestPool_ProcessTasks(t *testing.T) {
 	// Create a pool with 2 workers and a buffer size of 10.
 	pool := crawler.New(mockPRepo, mockAnal, 2, 10)
 
-	// Create a context that can be cancelled
+	// Create a context that can be cancelled.
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	t.Run("Start and Enqueue Tasks", func(t *testing.T) {
-		// Start the pool in a goroutine since it now blocks until context is cancelled
+		// Start the pool in a goroutine since Start() blocks until context is cancelled.
 		go pool.Start(ctx)
 
 		// Enqueue several tasks.
@@ -117,19 +102,17 @@ func TestPool_ProcessTasks(t *testing.T) {
 			pool.Enqueue(id)
 		}
 
-		// Allow some time for tasks to be picked up.
-		time.Sleep(100 * time.Millisecond)
+		// Allow time for tasks to be processed.
+		time.Sleep(150 * time.Millisecond)
 	})
 
 	t.Run("Shutdown Pool", func(t *testing.T) {
-		// Shutdown the pool by cancelling the context
+		// Shutdown the pool by cancelling the context.
 		cancel()
-
-		// Give some time for the pool to clean up
-		time.Sleep(100 * time.Millisecond)
+		// Give some time for the pool to clean up.
+		time.Sleep(150 * time.Millisecond)
 	})
 
-	// Verify that tasks were processed.
 	t.Run("Verify Task Processing", func(t *testing.T) {
 		// Check that for each task enqueued, UpdateStatus was called.
 		mockPRepo.mu.Lock()
@@ -137,7 +120,7 @@ func TestPool_ProcessTasks(t *testing.T) {
 		for _, id := range []uint{1, 2, 3} {
 			statuses, ok := mockPRepo.statusUpdates[id]
 			require.True(t, ok, "Expected task id %d to have status updates", id)
-			// Assuming worker sets at least two statuses: one for "running" and one for "done".
+			// Expect at least two status updates: one for "running", one for "done".
 			require.GreaterOrEqual(t, len(statuses), 2, "Expected at least two status updates for task id %d", id)
 		}
 
