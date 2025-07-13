@@ -18,12 +18,16 @@ linters-settings:
 issues:
   exclude-dirs:
     - "vendor"
+    - "tests"
   exclude-files:
     - ".*\\.gen\\.go"
   exclude-rules:
     - path: _test\\.go
       linters:
         - errcheck
+    - linters:
+        - goanalysis_metalinter
+      text: "Cannot range over: func(yield func(E) bool)"
   max-same-issues: 0
 linters:
   enable:
@@ -33,7 +37,6 @@ linters:
     - gosimple
     - unused
     - ineffassign
-    - typecheck
     - unconvert
     - gofmt
     - goimports
@@ -49,6 +52,7 @@ linters:
     - varcheck
     - nakedret
     - scopelint
+    - typecheck
 dupl:
   threshold: 50
 gocyclo:
