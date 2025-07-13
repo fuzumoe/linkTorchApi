@@ -62,7 +62,7 @@ test-integration: db-up
         echo "Waiting for MySQL on port 3309..."; \
         sleep 1; \
 	done
-	$(GOTEST) -p=2 -v -timeout $(TEST_TIMEOUT) ./tests/integration/...
+	$(GOTEST) -p=1 -v -timeout $(TEST_TIMEOUT) ./tests/integration/...
 
 # Run tests with coverage
 test-coverage: db-up
@@ -96,7 +96,7 @@ dev-basic-auth-header:
     TOKEN=$$(echo -n "$$EMAIL:$$PASSWORD" | base64); \
     echo "Authorization:"; \
     echo "Basic $$TOKEN"; \
-   
+
 
 # Run linting
 lint:
@@ -149,7 +149,7 @@ docker-compose-down:
 	docker compose down
 
 # Database commands
-db-up: 
+db-up:
 	docker compose up -d mysql
 
 db-down:
@@ -168,7 +168,7 @@ test-db-setup:
 	fi
 
 # Benchmark tests
-benchmark: db-up 
+benchmark: db-up
 	@echo "Waiting for database to be ready..."
 	@while ! bash -c "echo > /dev/tcp/localhost/3309" 2>/dev/null; do \
         echo "Waiting for MySQL on port 3309..."; \
