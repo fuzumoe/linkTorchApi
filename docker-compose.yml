@@ -37,6 +37,9 @@ services:
       PORT: ${PORT}
       GIN_MODE: ${GIN_MODE}
       JWT_SECRET: ${JWT_SECRET}
+      NUMBER_OF_CRAWLERS: ${NUMBER_OF_CRAWLERS:-5}
+      MAX_CONCURRENT_CRAWLS: ${MAX_CONCURRENT_CRAWLS:-50}
+      CRAWL_TIMEOUT_SECONDS: ${CRAWL_TIMEOUT_SECONDS:-30}
     depends_on:
       mysql:
         condition: service_healthy
