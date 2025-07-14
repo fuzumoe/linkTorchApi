@@ -82,6 +82,7 @@ func TestURLService_Integration(t *testing.T) {
 		assert.Equal(t, "https://example.com", urlDTO.OriginalURL, "OriginalURL should match the input.")
 	})
 
+	// Update the List test case to handle the paginated response
 	t.Run("List", func(t *testing.T) {
 		// Create several URLs for the test user.
 		urlsToCreate := []string{
@@ -103,9 +104,31 @@ func TestURLService_Integration(t *testing.T) {
 			Page:     1,
 			PageSize: 10,
 		}
-		urlList, err := urlService.List(testUser.ID, pagination)
+
+		// Changed: Now expect a PaginatedResponse instead of a slice
+		paginatedResult, err := urlService.List(testUser.ID, pagination)
 		require.NoError(t, err, "Should list URLs without error.")
-		assert.GreaterOrEqual(t, len(urlList), 3, "Should return at least 3 URLs.")
+
+		// Changed: Check the Data field of the paginated response
+		assert.GreaterOrEqual(t, len(paginatedResult.Data), 3, "Should return at least 3 URLs.")
+
+		// New: Verify pagination metadata
+		assert.Equal(t, 1, paginatedResult.Pagination.Page, "Page should be 1")
+		assert.Equal(t, 10, paginatedResult.Pagination.PageSize, "PageSize should be 10")
+		assert.GreaterOrEqual(t, paginatedResult.Pagination.TotalItems, 3, "TotalItems should be at least 3")
+		assert.GreaterOrEqual(t, paginatedResult.Pagination.TotalPages, 1, "Should have at least 1 page")
+
+		// Verify that the URLs we created are in the results
+		foundURLs := 0
+		for _, dto := range paginatedResult.Data {
+			for _, orig := range urlsToCreate {
+				if dto.OriginalURL == orig {
+					foundURLs++
+					break
+				}
+			}
+		}
+		assert.GreaterOrEqual(t, foundURLs, 3, "Should find at least 3 of the URLs we created")
 	})
 
 	t.Run("Update", func(t *testing.T) {

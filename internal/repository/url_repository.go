@@ -14,13 +14,12 @@ import (
 type URLRepository interface {
 	Create(u *model.URL) error
 	FindByID(id uint) (*model.URL, error)
+	CountByUser(userID uint) (int, error)
 	ListByUser(userID uint, p Pagination) ([]model.URL, error)
 	Update(u *model.URL) error
 	Delete(id uint) error
-
 	UpdateStatus(id uint, status string) error
 	SaveResults(id uint, res *model.AnalysisResult, links []model.Link) error
-
 	Results(id uint) (*model.URL, error)
 	ResultsWithDetails(id uint) (*model.URL, []*model.AnalysisResult, []*model.Link, error)
 }
@@ -33,6 +32,11 @@ func NewURLRepo(db *gorm.DB) URLRepository {
 	return &urlRepo{db: db}
 }
 
+func (r *urlRepo) CountByUser(userID uint) (int, error) {
+	var count int64
+	result := r.db.Model(&model.URL{}).Where("user_id = ?", userID).Count(&count)
+	return int(count), result.Error
+}
 func (r *urlRepo) Create(u *model.URL) error {
 	return r.db.Create(u).Error
 }

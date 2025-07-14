@@ -13,7 +13,7 @@ import (
 type URLService interface {
 	Create(input *model.CreateURLInputDTO) (uint, error)
 	Get(id uint) (*model.URLDTO, error)
-	List(userID uint, p repository.Pagination) ([]*model.URLDTO, error)
+	List(userID uint, p repository.Pagination) (*model.PaginatedResponse[model.URLDTO], error)
 	Update(id uint, input *model.UpdateURLInput) error
 	Delete(id uint) error
 	Start(id uint) error
@@ -113,17 +113,43 @@ func (s *urlService) Get(id uint) (*model.URLDTO, error) {
 	}
 	return u.ToDTO(), nil
 }
+func mapURLToDTO(url *model.URL) *model.URLDTO {
+	return url.ToDTO()
+}
 
-func (s *urlService) List(userID uint, p repository.Pagination) ([]*model.URLDTO, error) {
+func (s *urlService) List(userID uint, p repository.Pagination) (*model.PaginatedResponse[model.URLDTO], error) {
 	urls, err := s.repo.ListByUser(userID, p)
 	if err != nil {
 		return nil, err
 	}
-	dtos := make([]*model.URLDTO, len(urls))
-	for i, u := range urls {
-		dtos[i] = u.ToDTO()
+
+	// Get total count for pagination metadata
+	totalCount, err := s.repo.CountByUser(userID)
+	if err != nil {
+		return nil, err
 	}
-	return dtos, nil
+
+	// Calculate total pages
+	totalPages := totalCount / p.PageSize
+	if totalCount%p.PageSize > 0 {
+		totalPages++
+	}
+
+	// Convert models to DTOs
+	dtos := make([]model.URLDTO, len(urls))
+	for i, url := range urls {
+		dtos[i] = *mapURLToDTO(&url)
+	}
+
+	return &model.PaginatedResponse[model.URLDTO]{
+		Data: dtos,
+		Pagination: model.PaginationMetaDTO{
+			Page:       p.Page,
+			PageSize:   p.PageSize,
+			TotalItems: totalCount,
+			TotalPages: totalPages,
+		},
+	}, nil
 }
 
 func (s *urlService) Delete(id uint) error {

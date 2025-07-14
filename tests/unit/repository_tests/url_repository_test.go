@@ -1,6 +1,7 @@
 package repository_test
 
 import (
+	"errors"
 	"regexp"
 	"testing"
 	"time"
@@ -360,6 +361,49 @@ WHERE u.id = ?`)).
 		// Check that analysis results and links arrays are empty
 		assert.Len(t, resultAR, 0)
 		assert.Len(t, resultLinks, 0)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+	// Add this test case to the TestURLRepo function
+	t.Run("CountByUser", func(t *testing.T) {
+		db, mock := setupMockDB(t)
+		repo := repository.NewURLRepo(db)
+		userID := uint(5)
+
+		// Setup mock expectation for the Count query
+		mock.ExpectQuery(regexp.QuoteMeta(
+			"SELECT count(*) FROM `urls` WHERE user_id = ? AND `urls`.`deleted_at` IS NULL",
+		)).WithArgs(userID).WillReturnRows(
+			sqlmock.NewRows([]string{"count(*)"}).AddRow(10),
+		)
+
+		// Call the method under test
+		count, err := repo.CountByUser(userID)
+
+		// Verify results
+		assert.NoError(t, err)
+		assert.Equal(t, 10, count)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	// Add a test case for when CountByUser returns an error
+	t.Run("CountByUser_Error", func(t *testing.T) {
+		db, mock := setupMockDB(t)
+		repo := repository.NewURLRepo(db)
+		userID := uint(5)
+
+		// Setup mock to return an error
+		expectedErr := errors.New("database error")
+		mock.ExpectQuery(regexp.QuoteMeta(
+			"SELECT count(*) FROM `urls` WHERE user_id = ? AND `urls`.`deleted_at` IS NULL",
+		)).WithArgs(userID).WillReturnError(expectedErr)
+
+		// Call the method under test
+		count, err := repo.CountByUser(userID)
+
+		// Verify error is returned
+		assert.Error(t, err)
+		assert.Equal(t, expectedErr, err)
+		assert.Equal(t, 0, count)
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }

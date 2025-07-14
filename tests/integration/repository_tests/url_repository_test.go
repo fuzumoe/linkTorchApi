@@ -98,6 +98,9 @@ func TestURLRepo_Integration(t *testing.T) {
 		assert.ErrorIs(t, err, gorm.ErrRecordNotFound, "Should return record not found for non-existent ID")
 	})
 
+	// Create variable for another user that will be used in multiple tests
+	var anotherUser *model.User
+
 	t.Run("ListByUser", func(t *testing.T) {
 		// Create another URL for the same user.
 		secondURL := &model.URL{
@@ -109,7 +112,7 @@ func TestURLRepo_Integration(t *testing.T) {
 		require.NoError(t, err, "Should create second URL")
 
 		// Create a URL for a different user.
-		anotherUser := &model.User{
+		anotherUser = &model.User{
 			Username: "anotheruser",
 			Email:    "another@example.com",
 			Password: "anotherpassword",
@@ -351,6 +354,47 @@ func TestURLRepo_Integration(t *testing.T) {
 		// Test deleting non-existent URL.
 		err = urlRepo.Delete(9999)
 		assert.EqualError(t, err, "url not found", "Should return error when deleting non-existent URL")
+	})
+
+	// Add the CountByUser test case
+	t.Run("CountByUser", func(t *testing.T) {
+		// We have created several URLs for testUser in previous tests:
+		// - testURL (now deleted)
+		// - secondURL
+		// - newURL (from SaveResults test)
+		// - resultsURL (from Results test)
+		// - detailsURL (from ResultsWithDetails test)
+		// And one URL for anotherUser:
+		// - otherUserURL
+
+		// Test count for testUser (should be 4 URLs still active after testURL was deleted)
+		count, err := urlRepo.CountByUser(testUser.ID)
+		require.NoError(t, err, "Should count URLs without error")
+		assert.Equal(t, 4, count, "Should have 4 active URLs for testUser")
+
+		// Test count for anotherUser (should be 1)
+		count, err = urlRepo.CountByUser(anotherUser.ID)
+		require.NoError(t, err, "Should count URLs without error")
+		assert.Equal(t, 1, count, "Should have 1 URL for anotherUser")
+
+		// Test count for a non-existent user (should be 0)
+		count, err = urlRepo.CountByUser(9999)
+		require.NoError(t, err, "Should not error for non-existent user")
+		assert.Equal(t, 0, count, "Should have 0 URLs for non-existent user")
+
+		// Create one more URL for testUser to ensure the count increases
+		additionalURL := &model.URL{
+			UserID:      testUser.ID,
+			OriginalURL: "https://count-test.com",
+			Status:      "queued",
+		}
+		err = urlRepo.Create(additionalURL)
+		require.NoError(t, err, "Should create additional URL")
+
+		// Verify updated count
+		newCount, err := urlRepo.CountByUser(testUser.ID)
+		require.NoError(t, err, "Should count URLs without error")
+		assert.Equal(t, 5, newCount, "Should have 5 active URLs after adding one more")
 	})
 
 	utils.CleanTestData(t)

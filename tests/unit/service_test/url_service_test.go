@@ -61,6 +61,11 @@ func (m *MockURLRepo) ListByUser(userID uint, p repository.Pagination) ([]model.
 	return args.Get(0).([]model.URL), args.Error(1)
 }
 
+func (m *MockURLRepo) CountByUser(userID uint) (int, error) {
+	args := m.Called(userID)
+	return args.Int(0), args.Error(1)
+}
+
 func (m *MockURLRepo) Update(url *model.URL) error {
 	args := m.Called(url)
 	return args.Error(0)
@@ -195,40 +200,77 @@ func TestURLService_List(t *testing.T) {
 
 	t.Run("Success", func(t *testing.T) {
 		mockRepo.On("ListByUser", userID, pagination).Return(urls, nil).Once()
+		mockRepo.On("CountByUser", userID).Return(2, nil).Once()
 
-		dtos, err := svc.List(userID, pagination)
+		result, err := svc.List(userID, pagination)
 		require.NoError(t, err)
-		require.Len(t, dtos, 2)
+		require.NotNil(t, result)
 
-		assert.Equal(t, uint(1), dtos[0].ID)
-		assert.Equal(t, userID, dtos[0].UserID)
-		assert.Equal(t, "https://example1.com", dtos[0].OriginalURL)
-		assert.Equal(t, "done", dtos[0].Status)
+		// Check pagination metadata
+		assert.Equal(t, 1, result.Pagination.Page)
+		assert.Equal(t, 10, result.Pagination.PageSize)
+		assert.Equal(t, 2, result.Pagination.TotalItems)
+		assert.Equal(t, 1, result.Pagination.TotalPages)
 
-		assert.Equal(t, uint(2), dtos[1].ID)
-		assert.Equal(t, userID, dtos[1].UserID)
-		assert.Equal(t, "https://example2.com", dtos[1].OriginalURL)
-		assert.Equal(t, "queued", dtos[1].Status)
+		// Check data
+		require.Len(t, result.Data, 2)
+		assert.Equal(t, uint(1), result.Data[0].ID)
+		assert.Equal(t, userID, result.Data[0].UserID)
+		assert.Equal(t, "https://example1.com", result.Data[0].OriginalURL)
+		assert.Equal(t, "done", result.Data[0].Status)
+
+		assert.Equal(t, uint(2), result.Data[1].ID)
+		assert.Equal(t, userID, result.Data[1].UserID)
+		assert.Equal(t, "https://example2.com", result.Data[1].OriginalURL)
+		assert.Equal(t, "queued", result.Data[1].Status)
+
 		mockRepo.AssertExpectations(t)
 	})
 
 	t.Run("Empty Results", func(t *testing.T) {
 		mockRepo.On("ListByUser", userID, pagination).Return([]model.URL{}, nil).Once()
+		mockRepo.On("CountByUser", userID).Return(0, nil).Once()
 
-		dtos, err := svc.List(userID, pagination)
+		result, err := svc.List(userID, pagination)
 		require.NoError(t, err)
-		assert.Empty(t, dtos)
+		assert.Empty(t, result.Data)
+		assert.Equal(t, 0, result.Pagination.TotalItems)
+		assert.Equal(t, 0, result.Pagination.TotalPages)
 		mockRepo.AssertExpectations(t)
 	})
 
-	t.Run("Repository Error", func(t *testing.T) {
+	t.Run("Repository Error on ListByUser", func(t *testing.T) {
 		expectedErr := errors.New("database error")
 		mockRepo.On("ListByUser", userID, pagination).Return([]model.URL{}, expectedErr).Once()
 
-		dtos, err := svc.List(userID, pagination)
+		result, err := svc.List(userID, pagination)
 		assert.Error(t, err)
 		assert.Equal(t, expectedErr, err)
-		assert.Nil(t, dtos)
+		assert.Nil(t, result)
+		mockRepo.AssertExpectations(t)
+	})
+
+	t.Run("Repository Error on CountByUser", func(t *testing.T) {
+		mockRepo.On("ListByUser", userID, pagination).Return(urls, nil).Once()
+		expectedErr := errors.New("count error")
+		mockRepo.On("CountByUser", userID).Return(0, expectedErr).Once()
+
+		result, err := svc.List(userID, pagination)
+		assert.Error(t, err)
+		assert.Equal(t, expectedErr, err)
+		assert.Nil(t, result)
+		mockRepo.AssertExpectations(t)
+	})
+
+	t.Run("Multiple Pages", func(t *testing.T) {
+		// Test with 21 total items, which should result in 3 pages with pageSize 10
+		mockRepo.On("ListByUser", userID, pagination).Return(urls, nil).Once()
+		mockRepo.On("CountByUser", userID).Return(21, nil).Once()
+
+		result, err := svc.List(userID, pagination)
+		require.NoError(t, err)
+		assert.Equal(t, 21, result.Pagination.TotalItems)
+		assert.Equal(t, 3, result.Pagination.TotalPages) // Ceil(21/10) = 3
 		mockRepo.AssertExpectations(t)
 	})
 }
