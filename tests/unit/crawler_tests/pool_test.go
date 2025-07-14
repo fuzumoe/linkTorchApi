@@ -23,6 +23,11 @@ type mockPRepo struct {
 	saveResultsCalled bool
 }
 
+// CountByUser implements repository.URLRepository.
+func (r *mockPRepo) CountByUser(userID uint) (int, error) {
+	panic("unimplemented")
+}
+
 func newMockPRepo() *mockPRepo {
 	return &mockPRepo{
 		statusUpdates: make(map[uint][]string),

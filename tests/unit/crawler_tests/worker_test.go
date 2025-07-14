@@ -25,6 +25,11 @@ type testRepo struct {
 	urlStatus         map[uint]string
 }
 
+// CountByUser implements repository.URLRepository.
+func (r *testRepo) CountByUser(userID uint) (int, error) {
+	panic("unimplemented")
+}
+
 func newTestRepo() *testRepo {
 	return &testRepo{
 		statusUpdates: make(map[uint][]string),
