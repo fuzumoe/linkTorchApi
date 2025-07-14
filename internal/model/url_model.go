@@ -33,6 +33,20 @@ func (URL) TableName() string {
 	return "urls"
 }
 
+// PaginationMetaDTO contains pagination metadata for paginated responses
+type PaginationMetaDTO struct {
+	Page       int `json:"page"`
+	PageSize   int `json:"pageSize"`
+	TotalItems int `json:"totalItems"`
+	TotalPages int `json:"totalPages"`
+}
+
+// PaginatedResponse is a generic wrapper for any paginated data
+type PaginatedResponse[T any] struct {
+	Data       []T               `json:"data"`
+	Pagination PaginationMetaDTO `json:"pagination"`
+}
+
 // URLDTO is the data transfer object for URL.
 type URLDTO struct {
 	ID          uint      `json:"id"`

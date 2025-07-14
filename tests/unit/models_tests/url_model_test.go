@@ -38,6 +38,96 @@ func TestURL(t *testing.T) {
 		assert.WithinDuration(t, u.UpdatedAt, dto.UpdatedAt, time.Second, "UpdatedAt should match")
 	})
 
+	t.Run("PaginationMetaDTO", func(t *testing.T) {
+		meta := model.PaginationMetaDTO{
+			Page:       2,
+			PageSize:   10,
+			TotalItems: 25,
+			TotalPages: 3,
+		}
+
+		assert.Equal(t, 2, meta.Page, "Page should be 2")
+		assert.Equal(t, 10, meta.PageSize, "PageSize should be 10")
+		assert.Equal(t, 25, meta.TotalItems, "TotalItems should be 25")
+		assert.Equal(t, 3, meta.TotalPages, "TotalPages should be 3")
+	})
+
+	t.Run("PaginatedResponse", func(t *testing.T) {
+		dtos := []model.URLDTO{
+			{
+				ID:          1,
+				UserID:      2,
+				OriginalURL: "https://example1.com",
+				Status:      model.StatusDone,
+			},
+			{
+				ID:          2,
+				UserID:      2,
+				OriginalURL: "https://example2.com",
+				Status:      model.StatusQueued,
+			},
+		}
+
+		paginatedResponse := model.PaginatedResponse[model.URLDTO]{
+			Data: dtos,
+			Pagination: model.PaginationMetaDTO{
+				Page:       1,
+				PageSize:   10,
+				TotalItems: 2,
+				TotalPages: 1,
+			},
+		}
+
+		assert.Len(t, paginatedResponse.Data, 2, "Should have 2 items in Data")
+		assert.Equal(t, uint(1), paginatedResponse.Data[0].ID, "First item ID should be 1")
+		assert.Equal(t, uint(2), paginatedResponse.Data[1].ID, "Second item ID should be 2")
+		assert.Equal(t, 1, paginatedResponse.Pagination.Page, "Page should be 1")
+		assert.Equal(t, 10, paginatedResponse.Pagination.PageSize, "PageSize should be 10")
+		assert.Equal(t, 2, paginatedResponse.Pagination.TotalItems, "TotalItems should be 2")
+		assert.Equal(t, 1, paginatedResponse.Pagination.TotalPages, "TotalPages should be 1")
+	})
+
+	t.Run("PaginatedResponse JSON Marshaling", func(t *testing.T) {
+		dtos := []model.URLDTO{
+			{
+				ID:          1,
+				UserID:      2,
+				OriginalURL: "https://example1.com",
+				Status:      model.StatusDone,
+			},
+		}
+
+		paginatedResponse := model.PaginatedResponse[model.URLDTO]{
+			Data: dtos,
+			Pagination: model.PaginationMetaDTO{
+				Page:       1,
+				PageSize:   10,
+				TotalItems: 1,
+				TotalPages: 1,
+			},
+		}
+
+		// Marshal to JSON
+		jsonData, err := json.Marshal(paginatedResponse)
+		require.NoError(t, err, "Marshaling should not produce an error")
+
+		// Unmarshal back to struct
+		var unmarshaled map[string]interface{}
+		err = json.Unmarshal(jsonData, &unmarshaled)
+		require.NoError(t, err, "Unmarshaling should not produce an error")
+
+		// Check structure
+		data, ok := unmarshaled["data"].([]interface{})
+		require.True(t, ok, "Should have 'data' array field")
+		require.Len(t, data, 1, "Data should have 1 item")
+
+		pagination, ok := unmarshaled["pagination"].(map[string]interface{})
+		require.True(t, ok, "Should have 'pagination' object field")
+		assert.Equal(t, float64(1), pagination["page"], "page should be 1")
+		assert.Equal(t, float64(10), pagination["pageSize"], "pageSize should be 10")
+		assert.Equal(t, float64(1), pagination["totalItems"], "totalItems should be 1")
+		assert.Equal(t, float64(1), pagination["totalPages"], "totalPages should be 1")
+	})
 	t.Run("From Create Input", func(t *testing.T) {
 		input := &model.CreateURLInputDTO{
 			UserID:      2,
