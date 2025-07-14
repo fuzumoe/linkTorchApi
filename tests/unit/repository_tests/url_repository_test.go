@@ -290,7 +290,6 @@ func TestURLRepo(t *testing.T) {
 		id := uint(15)
 
 		// Expected JSON response returned by the raw query.
-		// Adjust the values below to match your expected structure.
 		expectedJSON := `{"url":{"id":15,"user_id":99,"original_url":"https://results.test","status":"completed","created_at":"2025-07-11T00:00:00.000000Z","updated_at":"2025-07-11T00:00:00.000000Z"},"analysis_results":[],"links":[]}`
 
 		mock.ExpectQuery(regexp.QuoteMeta(
