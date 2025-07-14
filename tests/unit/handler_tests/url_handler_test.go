@@ -32,13 +32,21 @@ func (s *dummyURLService) Get(id uint) (*model.URLDTO, error) {
 	}, nil
 }
 
-func (s *dummyURLService) List(userID uint, p repository.Pagination) ([]*model.URLDTO, error) {
-	return []*model.URLDTO{{
-		ID:          1,
-		OriginalURL: "http://example.com",
-		Status:      model.StatusQueued,
-		UserID:      userID,
-	}}, nil
+func (s *dummyURLService) List(userID uint, p repository.Pagination) (*model.PaginatedResponse[model.URLDTO], error) {
+	return &model.PaginatedResponse[model.URLDTO]{
+		Data: []model.URLDTO{{
+			ID:          1,
+			OriginalURL: "http://example.com",
+			Status:      model.StatusQueued,
+			UserID:      userID,
+		}},
+		Pagination: model.PaginationMetaDTO{
+			Page:       p.Page,
+			PageSize:   p.PageSize,
+			TotalItems: 1,
+			TotalPages: 1,
+		},
+	}, nil
 }
 
 func (s *dummyURLService) Update(id uint, in *model.UpdateURLInput) error {
@@ -136,11 +144,22 @@ func TestURLHandler(t *testing.T) {
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
-		var dtos []*model.URLDTO
-		err = json.Unmarshal(w.Body.Bytes(), &dtos)
+		var response struct {
+			Data       []model.URLDTO          `json:"data"`
+			Pagination model.PaginationMetaDTO `json:"pagination"`
+		}
+		err = json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
-		require.Len(t, dtos, 1)
-		assert.Equal(t, "http://example.com", dtos[0].OriginalURL)
+
+		// Verify pagination metadata
+		assert.Equal(t, 1, response.Pagination.Page)
+		assert.Equal(t, 10, response.Pagination.PageSize)
+		assert.Equal(t, 1, response.Pagination.TotalItems)
+		assert.Equal(t, 1, response.Pagination.TotalPages)
+
+		// Verify data
+		require.Len(t, response.Data, 1)
+		assert.Equal(t, "http://example.com", response.Data[0].OriginalURL)
 	})
 
 	t.Run("Get", func(t *testing.T) {

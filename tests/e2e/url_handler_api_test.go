@@ -101,10 +101,21 @@ func TestURLEndpoints_E2E(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-		var urls []model.URLDTO
-		err = json.NewDecoder(resp.Body).Decode(&urls)
+		var response struct {
+			Data       []model.URLDTO          `json:"data"`
+			Pagination model.PaginationMetaDTO `json:"pagination"`
+		}
+		err = json.NewDecoder(resp.Body).Decode(&response)
 		require.NoError(t, err)
-		assert.GreaterOrEqual(t, len(urls), 1, "Should have at least one URL")
+
+		// Verify pagination metadata
+		assert.Equal(t, 1, response.Pagination.Page)
+		assert.Equal(t, 10, response.Pagination.PageSize)
+		assert.GreaterOrEqual(t, response.Pagination.TotalItems, 1)
+		assert.GreaterOrEqual(t, response.Pagination.TotalPages, 1)
+
+		// Verify data
+		assert.GreaterOrEqual(t, len(response.Data), 1, "Should have at least one URL")
 	})
 
 	// Get URL Test

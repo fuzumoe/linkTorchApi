@@ -36,9 +36,9 @@ func (m *MockURLService) Get(id uint) (*model.URLDTO, error) {
 	return args.Get(0).(*model.URLDTO), args.Error(1)
 }
 
-func (m *MockURLService) List(userID uint, p repository.Pagination) ([]*model.URLDTO, error) {
+func (m *MockURLService) List(userID uint, p repository.Pagination) (*model.PaginatedResponse[model.URLDTO], error) {
 	args := m.Called(userID, p)
-	return args.Get(0).([]*model.URLDTO), args.Error(1)
+	return args.Get(0).(*model.PaginatedResponse[model.URLDTO]), args.Error(1)
 }
 
 func (m *MockURLService) Update(id uint, input *model.UpdateURLInput) error {
@@ -172,9 +172,17 @@ func TestURLHandler_Integration(t *testing.T) {
 	t.Run("List", func(t *testing.T) {
 		// Setup service mock
 		expectedPagination := repository.Pagination{Page: 1, PageSize: 10}
-		mockService.On("List", uint(1), expectedPagination).Return([]*model.URLDTO{
-			{ID: 1, OriginalURL: "https://example1.com", Status: "done"},
-			{ID: 2, OriginalURL: "https://example2.com", Status: "queued"},
+		mockService.On("List", uint(1), expectedPagination).Return(&model.PaginatedResponse[model.URLDTO]{
+			Data: []model.URLDTO{
+				{ID: 1, OriginalURL: "https://example1.com", Status: "done"},
+				{ID: 2, OriginalURL: "https://example2.com", Status: "queued"},
+			},
+			Pagination: model.PaginationMetaDTO{
+				Page:       1,
+				PageSize:   10,
+				TotalItems: 2,
+				TotalPages: 1,
+			},
 		}, nil).Once()
 
 		// Prepare and execute request
@@ -185,12 +193,20 @@ func TestURLHandler_Integration(t *testing.T) {
 		// Assert response
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response []*model.URLDTO
+		var response model.PaginatedResponse[model.URLDTO]
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
-		assert.Len(t, response, 2)
-		assert.Equal(t, "https://example1.com", response[0].OriginalURL)
-		assert.Equal(t, "https://example2.com", response[1].OriginalURL)
+
+		// Check pagination metadata
+		assert.Equal(t, 1, response.Pagination.Page)
+		assert.Equal(t, 10, response.Pagination.PageSize)
+		assert.Equal(t, 2, response.Pagination.TotalItems)
+		assert.Equal(t, 1, response.Pagination.TotalPages)
+
+		// Check data
+		assert.Len(t, response.Data, 2)
+		assert.Equal(t, "https://example1.com", response.Data[0].OriginalURL)
+		assert.Equal(t, "https://example2.com", response.Data[1].OriginalURL)
 
 		// Verify mock expectations
 		mockService.AssertExpectations(t)
