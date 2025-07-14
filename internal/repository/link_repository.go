@@ -12,12 +12,19 @@ import (
 type LinkRepository interface {
 	Create(link *model.Link) error
 	ListByURL(urlID uint, p Pagination) ([]model.Link, error)
+	CountByURL(urlID uint) (int, error)
 	Update(link *model.Link) error
 	Delete(link *model.Link) error
 }
 
 type linkRepo struct {
 	db *gorm.DB
+}
+
+func (r *linkRepo) CountByURL(urlID uint) (int, error) {
+	var count int64
+	err := r.db.Model(&model.Link{}).Where("url_id = ?", urlID).Count(&count).Error
+	return int(count), err
 }
 
 func NewLinkRepo(db *gorm.DB) LinkRepository {

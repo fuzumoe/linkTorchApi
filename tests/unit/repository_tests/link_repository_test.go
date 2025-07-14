@@ -160,4 +160,37 @@ func TestLinkRepo(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
+
+	t.Run("CountByURL", func(t *testing.T) {
+		db, mock := setupLinkMockDB(t)
+		repo := repository.NewLinkRepo(db)
+		urlID := uint(42)
+
+		rows := sqlmock.NewRows([]string{"count(*)"}).
+			AddRow(5)
+
+		mock.ExpectQuery(regexp.QuoteMeta(
+			"SELECT count(*) FROM `links` WHERE url_id = ? AND `links`.`deleted_at` IS NULL",
+		)).WithArgs(urlID).WillReturnRows(rows)
+
+		count, err := repo.CountByURL(urlID)
+		assert.NoError(t, err)
+		assert.Equal(t, 5, count)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("CountByURL_Error", func(t *testing.T) {
+		db, mock := setupLinkMockDB(t)
+		repo := repository.NewLinkRepo(db)
+		urlID := uint(42)
+
+		mock.ExpectQuery(regexp.QuoteMeta(
+			"SELECT count(*) FROM `links` WHERE url_id = ? AND `links`.`deleted_at` IS NULL",
+		)).WithArgs(urlID).WillReturnError(gorm.ErrInvalidDB)
+
+		count, err := repo.CountByURL(urlID)
+		assert.Error(t, err)
+		assert.Equal(t, 0, count)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
 }
