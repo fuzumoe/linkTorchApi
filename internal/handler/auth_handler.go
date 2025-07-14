@@ -236,10 +236,10 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 func (h *AuthHandler) RegisterPublicRoutes(rg *gin.RouterGroup) {
 	rg.POST("/login/basic", h.LoginBasic)
 	rg.POST("/login/jwt", h.LoginJWT)
+	rg.POST("/register", h.Register)
 }
 
 // RegisterProtectedRoutes registers the protected auth endpoints.
 func (h *AuthHandler) RegisterProtectedRoutes(rg *gin.RouterGroup) {
-	rg.POST("/register", h.Register)
 	rg.POST("/logout", h.Logout)
 }

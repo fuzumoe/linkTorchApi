@@ -75,24 +75,24 @@ func (h *URLHandler) Create(c *gin.Context) {
 // @Produce json
 // @Param   page      query int false "page" default(1) example(1)
 // @Param   page_size query int false "page_size" default(10) example(10)
-// @Success 200 {array} model.URLDTO
+// @Success 200 {object} model.PaginatedResponse[model.URLDTO] "Paginated URL list"
 // @Security JWTAuth
 // @Security BasicAuth
 // @Router  /urls [get]
 func (h *URLHandler) List(c *gin.Context) {
-	uidAny, exists := c.Get("user_id") // Changed from "userID" to "user_id"
+	uidAny, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 	userID := uidAny.(uint)
 
-	items, err := h.urlService.List(userID, paginationFromQuery(c))
+	paginatedResult, err := h.urlService.List(userID, paginationFromQuery(c))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, items)
+	c.JSON(http.StatusOK, paginatedResult)
 }
 
 // @Summary Get one URL row
