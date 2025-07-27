@@ -10,7 +10,6 @@ import (
 	"github.com/fuzumoe/linkTorch-api/internal/repository"
 )
 
-// Pool defines the interface for a crawler pool that manages multiple workers.
 type Pool interface {
 	Start(ctx context.Context)
 	Enqueue(id uint)
@@ -20,7 +19,6 @@ type Pool interface {
 	AdjustWorkers(cmd ControlCommand)
 }
 
-// New creates a new crawler pool with the specified number of workers and buffer size.
 func New(repo repository.URLRepository, a analyzer.Analyzer, workers, buf int, crawlTimeout time.Duration) Pool {
 	if workers <= 0 {
 		workers = 4
@@ -32,7 +30,6 @@ func New(repo repository.URLRepository, a analyzer.Analyzer, workers, buf int, c
 		crawlTimeout = 30 * time.Second
 	}
 
-	// Start with a background context.
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &pool{
@@ -51,7 +48,6 @@ func New(repo repository.URLRepository, a analyzer.Analyzer, workers, buf int, c
 	}
 }
 
-// pool manages a set of workers that process URL analysis tasks.
 type pool struct {
 	repo           repository.URLRepository
 	analyzer       analyzer.Analyzer
@@ -68,16 +64,11 @@ type pool struct {
 	crawlTimeout   time.Duration
 }
 
-// Start initializes the workers and begins processing tasks.
 func (p *pool) Start(ctx context.Context) {
-	// Create a child context that can be cancelled either by the external ctx or by p.cancel.
 	childCtx, cancel := context.WithCancel(ctx)
-	// Overwrite our internal context with the child context.
 	p.ctx = childCtx
-	// Ensure that when Start() exits, we cancel the child context.
 	defer cancel()
 
-	// Spin up workers.
 	for i := 0; i < p.workers; i++ {
 		w := newWorker(i+1, p.ctx, p.repo, p.analyzer, p.crawlTimeout, p.results)
 		p.wg.Add(1)
@@ -87,7 +78,6 @@ func (p *pool) Start(ctx context.Context) {
 		}()
 	}
 
-	// Start a goroutine to handle control commands
 	go func() {
 		for {
 			select {
@@ -107,8 +97,6 @@ func (p *pool) Start(ctx context.Context) {
 					}
 					p.workers += cmd.Count
 				case "remove":
-					// Workers will automatically exit when context is cancelled
-					// So we just need to update the count
 					toRemove := min(cmd.Count, p.workers-1)
 					if toRemove > 0 {
 						log.Printf("[crawler] removing %d workers", toRemove)
@@ -119,7 +107,6 @@ func (p *pool) Start(ctx context.Context) {
 		}
 	}()
 
-	// Start a background task to forward regular tasks to normal priority
 	go func() {
 		for {
 			select {
@@ -140,12 +127,10 @@ func (p *pool) Start(ctx context.Context) {
 		}
 	}()
 
-	// Block until the external context is cancelled.
 	<-p.ctx.Done()
 	p.Shutdown()
 }
 
-// Enqueue drops a URL-row ID onto the buffered channel.
 func (p *pool) Enqueue(id uint) {
 	select {
 	case <-p.ctx.Done():
@@ -155,7 +140,6 @@ func (p *pool) Enqueue(id uint) {
 	}
 }
 
-// EnqueueWithPriority enqueues a URL with the specified priority
 func (p *pool) EnqueueWithPriority(id uint, priority int) {
 	var targetQueue chan uint
 
@@ -176,12 +160,10 @@ func (p *pool) EnqueueWithPriority(id uint, priority int) {
 	}
 }
 
-// GetResults returns the channel that emits crawl results
 func (p *pool) GetResults() <-chan CrawlResult {
 	return p.results
 }
 
-// AdjustWorkers allows dynamically adding or removing workers
 func (p *pool) AdjustWorkers(cmd ControlCommand) {
 	select {
 	case <-p.ctx.Done():
@@ -191,7 +173,6 @@ func (p *pool) AdjustWorkers(cmd ControlCommand) {
 	}
 }
 
-// Shutdown cancels the context, waits for all workers to finish, and then closes the channels.
 func (p *pool) Shutdown() {
 	p.cancel()
 	p.wg.Wait()

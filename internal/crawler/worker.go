@@ -13,7 +13,6 @@ import (
 	"github.com/fuzumoe/linkTorch-api/internal/repository"
 )
 
-// worker manages a single crawling job with an individual timeout.
 type worker struct {
 	id           int
 	ctx          context.Context
@@ -23,7 +22,6 @@ type worker struct {
 	results      chan<- CrawlResult
 }
 
-// newWorker creates a new worker instance with crawlTimeout.
 func newWorker(id int, ctx context.Context, r repository.URLRepository, a analyzer.Analyzer, crawlTimeout time.Duration, results chan<- CrawlResult) *worker {
 	return &worker{
 		id:           id,
@@ -35,12 +33,10 @@ func newWorker(id int, ctx context.Context, r repository.URLRepository, a analyz
 	}
 }
 
-// NewWorker is an exported constructor for worker.
 func NewWorker(id int, ctx context.Context, r repository.URLRepository, a analyzer.Analyzer, crawlTimeout time.Duration, results chan<- CrawlResult) *worker {
 	return newWorker(id, ctx, r, a, crawlTimeout, results)
 }
 
-// run starts the worker loop.
 func (w *worker) run(tasks <-chan uint) {
 	for {
 		select {
@@ -58,25 +54,22 @@ func (w *worker) run(tasks <-chan uint) {
 	}
 }
 
-// runWithPriority starts the worker loop with priority queues
 func (w *worker) runWithPriority(high, normal, low <-chan uint) {
 	for {
-		// First check if the context is cancelled
+
 		if w.ctx.Done() != nil {
 			select {
 			case <-w.ctx.Done():
 				return
 			default:
-				// Context not cancelled, proceed
+				return
 			}
 		}
 
-		// Check queues in order of priority
 		select {
 		case <-w.ctx.Done():
 			return
 
-		// Check high priority first
 		case id, ok := <-high:
 			if !ok {
 				continue
@@ -86,12 +79,10 @@ func (w *worker) runWithPriority(high, normal, low <-chan uint) {
 			}
 			w.process(id)
 
-		// Check if there's anything in normal or low queues using a default case
 		default:
 			select {
 			case <-w.ctx.Done():
 				return
-			// Then check normal priority
 			case id, ok := <-normal:
 				if !ok {
 					continue
@@ -100,7 +91,6 @@ func (w *worker) runWithPriority(high, normal, low <-chan uint) {
 					continue
 				}
 				w.process(id)
-			// Finally check low priority
 			case id, ok := <-low:
 				if !ok {
 					continue
@@ -110,25 +100,21 @@ func (w *worker) runWithPriority(high, normal, low <-chan uint) {
 				}
 				w.process(id)
 			default:
-				// No tasks available in any queue, sleep briefly to avoid CPU spinning
 				time.Sleep(50 * time.Millisecond)
 			}
 		}
 	}
 }
 
-// Run is an exported wrapper around the unexported run method.
 func (w *worker) Run(tasks <-chan uint) {
 	w.run(tasks)
 }
 
-// process handles a single URL analysis task.
 func (w *worker) process(id uint) {
 	logf := func(fmtStr string, v ...any) {
 		log.Printf("[crawler:%d] id=%d – "+fmtStr, append([]any{id}, v...)...)
 	}
 
-	// Create a result structure to track the crawl
 	start := time.Now()
 	result := CrawlResult{
 		URLID:    id,
@@ -136,10 +122,8 @@ func (w *worker) process(id uint) {
 		Duration: 0,
 	}
 
-	// Send the result when we're done
 	defer func() {
 		result.Duration = time.Since(start)
-		// Only send result if we have a results channel
 		if w.results != nil {
 			select {
 			case <-w.ctx.Done():
@@ -150,14 +134,12 @@ func (w *worker) process(id uint) {
 		}
 	}()
 
-	// Update status to running.
 	if err := w.repo.UpdateStatus(id, model.StatusRunning); err != nil {
 		logf("cannot set running: %v", err)
 		result.Error = err
 		return
 	}
 
-	// Fetch the record.
 	rec, err := w.repo.FindByID(id)
 	if err != nil {
 		setErr(w.repo, id, err)
@@ -167,21 +149,17 @@ func (w *worker) process(id uint) {
 		return
 	}
 
-	// Store the URL in the result
 	result.URL = rec.OriginalURL
 
-	// Allow a stop request to take precedence.
 	if rec.Status == model.StatusStopped {
 		logf("aborting analysis because status is 'stopped'")
 		result.Status = model.StatusStopped
 		return
 	}
 
-	// Create a context with the worker's crawl timeout.
 	timeoutCtx, cancel := context.WithTimeout(w.ctx, w.crawlTimeout)
 	defer cancel()
 
-	// Perform the analysis.
 	res, links, err := w.analyzer.Analyze(timeoutCtx, rec.URL())
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
@@ -198,11 +176,9 @@ func (w *worker) process(id uint) {
 		return
 	}
 
-	// Update the result with link info
 	result.LinkCount = len(links)
 	result.Links = links
 
-	// Persist results.
 	if err := w.repo.SaveResults(id, res, links); err != nil {
 		setErr(w.repo, id, err)
 		logf("save: %v", err)
@@ -226,7 +202,6 @@ func (w *worker) process(id uint) {
 	logf("done in %s (links=%d)", time.Since(start).Truncate(time.Millisecond), len(links))
 }
 
-// setErr updates the URL status to "error" if the error is not a record not found.
 func setErr(repo repository.URLRepository, id uint, err error) {
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		_ = repo.UpdateStatus(id, model.StatusError)
