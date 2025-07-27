@@ -146,6 +146,7 @@ func Run() error {
 	healthH := handler.NewHealthHandler(healthSvc)
 	authH := handler.NewAuthHandler(authSVC, userSvc)
 	urlH := handler.NewURLHandler(urlSvc)
+	userH := handler.NewUserHandler(userSvc)
 
 	// Build router and register routes.
 	router := gin.New()
@@ -163,6 +164,10 @@ func Run() error {
 		RouteRegistrarFunc(func(rg *gin.RouterGroup) {
 			// Register URL routes (assumed to be protected).
 			urlH.RegisterProtectedRoutes(rg)
+		}),
+		RouteRegistrarFunc(func(rg *gin.RouterGroup) {
+			// Register user routes (assumed to be protected).
+			userH.RegisterProtectedRoutes(rg)
 		}),
 	}
 	server.RegisterRoutes(

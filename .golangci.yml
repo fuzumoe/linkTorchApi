@@ -10,6 +10,8 @@ linters-settings:
   revive:
     ignore-generated-header: true
     severity: warning
+  gocyclo:
+    min-complexity: 60
 
 issues:
   exclude-dirs:
