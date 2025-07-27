@@ -16,38 +16,30 @@ import (
 
 var startOnce sync.Once
 
-// StartServer launches the real Gin server exactly once.
 func StartServer() {
 	startOnce.Do(func() {
-		// 0) Load .env so configs.Load sees all variables
-		_ = godotenv.Load("../../.env") // silent if missing
 
-		// 1) Force debug unless caller already set it
+		_ = godotenv.Load("../../.env")
+
 		if os.Getenv("GIN_MODE") == "" {
 			os.Setenv("GIN_MODE", "debug")
 		}
 
-		// 2) Pick a test port
 		port := os.Getenv("TEST_PORT")
 		if port == "" {
 			port = "8091"
 		}
 
-		// 3) ✨  Tell config loader which port to use
-		// (configs.Load reads SERVER_PORT)
 		os.Setenv("SERVER_PORT", port)
 
-		// NewClient/BaseURL still rely on PORT →
 		os.Setenv("PORT", port)
 
-		// 4) Spin up the server
 		go func() {
 			if err := app.Run(); err != nil && err != http.ErrServerClosed {
 				log.Fatalf("server exited: %v", err)
 			}
 		}()
 
-		// 5) Block until the port is reachable (max 5 s)
 		if err := waitForPort(port, 5*time.Second); err != nil {
 			log.Fatalf("server never became ready: %v", err)
 		}
@@ -56,7 +48,6 @@ func StartServer() {
 	})
 }
 
-// waitForPort polls until TCP connect succeeds or times out.
 func waitForPort(p string, d time.Duration) error {
 	deadline := time.Now().Add(d)
 	for time.Now().Before(deadline) {
