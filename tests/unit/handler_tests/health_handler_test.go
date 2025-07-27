@@ -14,7 +14,6 @@ import (
 	"github.com/fuzumoe/linkTorch-api/internal/service"
 )
 
-// dummyHealthService implements service.HealthService for unit testing.
 type dummyHealthService struct {
 	response *service.HealthStatus
 }
@@ -27,7 +26,6 @@ func TestHealthHandler(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	t.Run("Home Endpoint", func(t *testing.T) {
-		// Create a dummy health service returning a healthy status.
 		dummy := &dummyHealthService{
 			response: &service.HealthStatus{
 				Service:  "TestService",

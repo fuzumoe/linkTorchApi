@@ -17,35 +17,28 @@ import (
 )
 
 func TestRouterIntegration(t *testing.T) {
-	// Set up test mode
+
 	gin.SetMode(gin.TestMode)
 
-	// Set up test database
 	db := utils.SetupTest(t)
 
-	// Create real services
 	healthService := service.NewHealthService(db, "IntegrationTest")
 
-	// Create real handlers
 	healthHandler := handler.NewHealthHandler(healthService)
 
-	// Create a new router
 	r := gin.New()
 
-	// Register routes with real handlers
 	server.RegisterRoutes(
 		r,
 		"test-secret",
-		func(c *gin.Context) { c.Next() },      // Dummy auth middleware for testing
-		[]server.RouteRegistrar{healthHandler}, // Use real health handler
-		[]server.RouteRegistrar{},              // No protected routes for this test
+		func(c *gin.Context) { c.Next() },
+		[]server.RouteRegistrar{healthHandler},
+		[]server.RouteRegistrar{},
 	)
 
-	// Create a test HTTP server
 	ts := httptest.NewServer(r)
 	defer ts.Close()
 
-	// Test the API status endpoint (updated from root)
 	t.Run("API Status Endpoint", func(t *testing.T) {
 		resp, err := http.Get(ts.URL + "/api/v1/status")
 		require.NoError(t, err)
@@ -60,8 +53,6 @@ func TestRouterIntegration(t *testing.T) {
 		assert.Equal(t, "IntegrationTest", result["service"])
 		assert.Equal(t, "running", result["status"])
 	})
-
-	// Test the health endpoint provided by the health handler
 	t.Run("Handler Health Endpoint", func(t *testing.T) {
 		resp, err := http.Get(ts.URL + "/api/v1/health")
 		require.NoError(t, err)
@@ -78,7 +69,6 @@ func TestRouterIntegration(t *testing.T) {
 		assert.Contains(t, result, "checked")
 	})
 
-	// Test non-existent route
 	t.Run("Route Not Found", func(t *testing.T) {
 		resp, err := http.Get(ts.URL + "/non-existent")
 		require.NoError(t, err)

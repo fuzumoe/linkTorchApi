@@ -12,13 +12,12 @@ import (
 
 func TestLoad(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
-		// Set required env vars.
+
 		os.Setenv("DB_USER", "user")
 		os.Setenv("DB_PASSWORD", "pass")
 		os.Setenv("DB_NAME", "db")
 		os.Setenv("JWT_SECRET", "secret")
 
-		// Optional overrides.
 		os.Setenv("HOST", "127.0.0.1")
 		os.Setenv("PORT", "9090")
 		os.Setenv("GIN_MODE", "release")

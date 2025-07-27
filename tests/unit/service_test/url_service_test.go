@@ -17,7 +17,6 @@ import (
 	"github.com/fuzumoe/linkTorch-api/internal/service"
 )
 
-// DummyCrawlerPool updated to match new interface
 type DummyCrawlerPool struct{}
 
 func (d *DummyCrawlerPool) Start(ctx context.Context)                 {}
@@ -29,7 +28,6 @@ func (d *DummyCrawlerPool) GetResults() <-chan crawler.CrawlResult {
 }
 func (d *DummyCrawlerPool) AdjustWorkers(cmd crawler.ControlCommand) {}
 
-// MockCrawlerPool updated to match new interface
 type MockCrawlerPool struct {
 	mock.Mock
 }
@@ -54,7 +52,6 @@ func (m *MockCrawlerPool) AdjustWorkers(cmd crawler.ControlCommand) {
 	m.Called(cmd)
 }
 
-// MockURLRepo mocks implementation of repository.URLRepository.
 type MockURLRepo struct {
 	mock.Mock
 }
@@ -110,7 +107,6 @@ func (m *MockURLRepo) SaveResults(urlID uint, analysisRes *model.AnalysisResult,
 	return args.Error(0)
 }
 
-// New method added to fully implement repository.URLRepository.
 func (m *MockURLRepo) ResultsWithDetails(id uint) (*model.URL, []*model.AnalysisResult, []*model.Link, error) {
 	args := m.Called(id)
 	if args.Get(0) == nil {
@@ -222,13 +218,11 @@ func TestURLService_List(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, result)
 
-		// Check pagination metadata
 		assert.Equal(t, 1, result.Pagination.Page)
 		assert.Equal(t, 10, result.Pagination.PageSize)
 		assert.Equal(t, 2, result.Pagination.TotalItems)
 		assert.Equal(t, 1, result.Pagination.TotalPages)
 
-		// Check data
 		require.Len(t, result.Data, 2)
 		assert.Equal(t, uint(1), result.Data[0].ID)
 		assert.Equal(t, userID, result.Data[0].UserID)
@@ -279,14 +273,13 @@ func TestURLService_List(t *testing.T) {
 	})
 
 	t.Run("Multiple Pages", func(t *testing.T) {
-		// Test with 21 total items, which should result in 3 pages with pageSize 10
 		mockRepo.On("ListByUser", userID, pagination).Return(urls, nil).Once()
 		mockRepo.On("CountByUser", userID).Return(21, nil).Once()
 
 		result, err := svc.List(userID, pagination)
 		require.NoError(t, err)
 		assert.Equal(t, 21, result.Pagination.TotalItems)
-		assert.Equal(t, 3, result.Pagination.TotalPages) // Ceil(21/10) = 3
+		assert.Equal(t, 3, result.Pagination.TotalPages)
 		mockRepo.AssertExpectations(t)
 	})
 }
@@ -528,7 +521,6 @@ func TestURLService_ResultsWithDetails(t *testing.T) {
 	svc := service.NewURLService(mockRepo, dummyPool)
 	urlID := uint(77)
 
-	// Prepare dummy detailed data
 	testURL := &model.URL{
 		ID:          urlID,
 		UserID:      101,
@@ -537,8 +529,8 @@ func TestURLService_ResultsWithDetails(t *testing.T) {
 		CreatedAt:   mustParseTime("2025-07-11T00:00:00Z"),
 		UpdatedAt:   mustParseTime("2025-07-11T01:00:00Z"),
 	}
-	analysisResults := []*model.AnalysisResult{} // empty slice for test
-	links := []*model.Link{}                     // empty slice for test
+	analysisResults := []*model.AnalysisResult{}
+	links := []*model.Link{}
 
 	mockRepo.On("ResultsWithDetails", urlID).
 		Return(testURL, analysisResults, links, nil).
@@ -552,7 +544,6 @@ func TestURLService_ResultsWithDetails(t *testing.T) {
 	mockRepo.AssertExpectations(t)
 }
 
-// mustParseTime is a helper to parse RFC3339 time and panic on error.
 func mustParseTime(s string) time.Time {
 	parsed, err := time.Parse(time.RFC3339, s)
 	if err != nil {

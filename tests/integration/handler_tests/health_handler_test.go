@@ -10,7 +10,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 
-	// Import from the actual folder "handler" but alias it as "handler"
 	"github.com/fuzumoe/linkTorch-api/internal/handler"
 	"github.com/fuzumoe/linkTorch-api/internal/service"
 	"github.com/fuzumoe/linkTorch-api/tests/utils"
@@ -19,17 +18,13 @@ import (
 func TestHealthHandlerIntegration(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	// Use the project test setup.
 	db := utils.SetupTest(t)
 	defer utils.CleanTestData(t)
 
-	// Create a real HealthService using the live database.
 	healthService := service.NewHealthService(db, "IntegrationHealthTest")
 
-	// Create the HealthHandler with the real service.
 	h := handler.NewHealthHandler(healthService)
 
-	// Setup a Gin router with the handlers.
 	router := gin.New()
 	router.GET("/", h.Home)
 	router.GET("/health", h.Health)
@@ -54,7 +49,6 @@ func TestHealthHandlerIntegration(t *testing.T) {
 		rec := httptest.NewRecorder()
 		router.ServeHTTP(rec, req)
 
-		// Retrieve the current health status from the service.
 		status := healthService.Check()
 		expectedCode := http.StatusOK
 		if !status.Healthy {
@@ -73,7 +67,7 @@ func TestHealthHandlerIntegration(t *testing.T) {
 		assert.True(t, ok, "checked timestamp should be a string")
 		checkedTime, err := time.Parse(time.RFC3339, checkedStr)
 		assert.NoError(t, err)
-		// Ensure the checked timestamp is recent.
+
 		assert.True(t, time.Since(checkedTime) < 5*time.Second)
 	})
 }

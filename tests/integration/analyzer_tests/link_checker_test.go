@@ -17,9 +17,6 @@ import (
 )
 
 func TestLinkChecker_Integration(t *testing.T) {
-	// Start a test server that simulates:
-	// - "/ok": HEAD returns 200; GET returns 200.
-	// - "/get": HEAD returns 405; GET returns 200.
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/ok":
@@ -42,27 +39,22 @@ func TestLinkChecker_Integration(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	// Parse the base URL.
 	_, err := url.Parse(ts.URL)
 	require.NoError(t, err)
 
-	// Create a new linkChecker instance via the exported constructor.
 	lc := analyzer.NewLinkChecker(2, 5*time.Second)
 	require.NotNil(t, lc)
 
-	// Override linkChecker's HTTP client (unexported) so that all HTTP requests are directed to our test server.
 	lcValue := reflect.ValueOf(lc).Elem()
 	clientField := lcValue.FieldByName("client")
 	require.True(t, clientField.IsValid(), "client field must exist")
 	ptrToClient := unsafe.Pointer(clientField.UnsafeAddr())
 	reflect.NewAt(clientField.Type(), ptrToClient).Elem().Set(reflect.ValueOf(ts.Client()))
 
-	// Build two links using our test server endpoints.
 	link1 := model.Link{Href: ts.URL + "/ok"}
 	link2 := model.Link{Href: ts.URL + "/get"}
 	links := []model.Link{link1, link2}
 
-	// Integration test using t.Run.
 	t.Run("Integration: Run LinkChecker", func(t *testing.T) {
 		updatedLinks := lc.Run(context.Background(), links)
 		require.Len(t, updatedLinks, 2, "Expected two links to be returned")

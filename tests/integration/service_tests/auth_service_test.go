@@ -15,30 +15,25 @@ import (
 )
 
 func TestAuthService_Integration(t *testing.T) {
-	// Set up test database
+
 	db := utils.SetupTest(t)
 
-	// Initialize repositories with real DB
 	userRepo := repository.NewUserRepo(db)
 	tokenRepo := repository.NewTokenRepo(db)
 
-	// Initialize the auth service
 	jwtSecret := "utils-test-secret"
 	tokenLifetime := 1 * time.Hour
 	authService := service.NewAuthService(userRepo, tokenRepo, jwtSecret, tokenLifetime)
 
-	// Test data
 	testUsername := "testuser"
 	testEmail := "test@example.com"
 	testPassword := "password123"
 
-	// Create a test user for auth tests
 	t.Run("Setup_TestUser", func(t *testing.T) {
-		// Hash the password
+
 		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(testPassword), bcrypt.DefaultCost)
 		require.NoError(t, err)
 
-		// Create user directly through repository
 		user := &model.User{
 			Username: testUsername,
 			Email:    testEmail,
@@ -54,14 +49,13 @@ func TestAuthService_Integration(t *testing.T) {
 	var tokenID string
 
 	t.Run("AuthenticateBasic_Success", func(t *testing.T) {
-		// Test basic authentication
+
 		userDTO, err := authService.AuthenticateBasic(testEmail, testPassword)
 		require.NoError(t, err)
 		assert.NotNil(t, userDTO)
 		assert.Equal(t, testUsername, userDTO.Username)
 		assert.Equal(t, testEmail, userDTO.Email)
 
-		// Save user ID for later tests
 		userID = userDTO.ID
 	})
 
@@ -88,21 +82,18 @@ func TestAuthService_Integration(t *testing.T) {
 	})
 
 	t.Run("FindUserById_NonExistent", func(t *testing.T) {
-		userDTO, err := authService.FindUserById(9999) // Non-existent ID
+		userDTO, err := authService.FindUserById(9999)
 		assert.Error(t, err)
 		assert.Nil(t, userDTO)
 	})
 
 	t.Run("Generate_Token", func(t *testing.T) {
-		// Generate a token for the test user
 		token, err := authService.Generate(userID)
 		require.NoError(t, err)
 		assert.NotEmpty(t, token)
 
-		// Save the token for later tests
 		tokenString = token
 
-		// Extract the token ID for revocation tests
 		claims, err := authService.Validate(token)
 		require.NoError(t, err)
 		tokenID = claims.ID
@@ -110,7 +101,7 @@ func TestAuthService_Integration(t *testing.T) {
 	})
 
 	t.Run("Generate_NonExistentUser", func(t *testing.T) {
-		token, err := authService.Generate(9999) // Non-existent ID
+		token, err := authService.Generate(9999)
 		assert.Error(t, err)
 		assert.Empty(t, token)
 	})
@@ -130,23 +121,20 @@ func TestAuthService_Integration(t *testing.T) {
 	})
 
 	t.Run("IsTokenRevoked_NotRevoked", func(t *testing.T) {
-		// Check that the token is not revoked
 		revoked, err := authService.IsTokenRevoked(tokenID)
 		require.NoError(t, err)
 		assert.False(t, revoked)
 	})
 
 	t.Run("Invalidate_Token", func(t *testing.T) {
-		// Invalidate the token
+
 		err := authService.Invalidate(tokenID)
 		require.NoError(t, err)
 
-		// Verify token is now revoked
 		revoked, err := authService.IsTokenRevoked(tokenID)
 		require.NoError(t, err)
 		assert.True(t, revoked)
 
-		// Validate should now fail
 		claims, err := authService.Validate(tokenString)
 		assert.Error(t, err)
 		assert.Equal(t, service.ErrTokenInvalid, err)
@@ -183,13 +171,11 @@ func TestAuthService_Integration(t *testing.T) {
 		err = tokenRepo.Add(validToken)
 		require.NoError(t, err)
 
-		// Direct DB check: the expired token should be there.
 		var expiredCount int64
 		err = db.Model(&model.BlacklistedToken{}).Where("jti = ?", expiredJTI).Count(&expiredCount).Error
 		require.NoError(t, err)
 		assert.Equal(t, int64(1), expiredCount, "Expired token should be in database")
 
-		// Check via the service.
 		isRevoked, err := authService.IsTokenRevoked(expiredJTI)
 		require.NoError(t, err)
 		assert.True(t, isRevoked, "Expired token should be in blacklist after adding")
@@ -198,11 +184,9 @@ func TestAuthService_Integration(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, isRevoked, "Valid token should be in blacklist after adding")
 
-		// Run cleanup.
 		err = authService.CleanupExpired()
 		require.NoError(t, err)
 
-		// After cleanup, expired token should be gone.
 		err = db.Model(&model.BlacklistedToken{}).Where("jti = ?", expiredJTI).Count(&expiredCount).Error
 		require.NoError(t, err)
 		assert.Equal(t, int64(0), expiredCount, "Expired token should be removed from database after cleanup")
@@ -221,6 +205,5 @@ func TestAuthService_Integration(t *testing.T) {
 		assert.True(t, isRevoked, "Valid token should remain in blacklist")
 	})
 
-	// Clean up test data
 	utils.CleanTestData(t)
 }

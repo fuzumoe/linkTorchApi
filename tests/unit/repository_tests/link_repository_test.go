@@ -15,7 +15,6 @@ import (
 	"github.com/fuzumoe/linkTorch-api/internal/repository"
 )
 
-// setupLinkMockDB initializes a GORM DB backed by sqlmock.
 func setupLinkMockDB(t *testing.T) (*gorm.DB, sqlmock.Sqlmock) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -48,9 +47,9 @@ func TestLinkRepo(t *testing.T) {
 			testLink.Href,
 			testLink.IsExternal,
 			testLink.StatusCode,
-			sqlmock.AnyArg(), // created_at
-			sqlmock.AnyArg(), // updated_at
-			sqlmock.AnyArg(), // deleted_at (nil)
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
 		).WillReturnResult(sqlmock.NewResult(1, 1))
 		mock.ExpectCommit()
 
@@ -128,8 +127,8 @@ func TestLinkRepo(t *testing.T) {
 			testLink.IsExternal,
 			testLink.StatusCode,
 			testLink.CreatedAt,
-			sqlmock.AnyArg(), // updated_at will be updated
-			nil,              // deleted_at is nil
+			sqlmock.AnyArg(),
+			nil,
 			testLink.ID,
 		).WillReturnResult(sqlmock.NewResult(0, 1))
 		mock.ExpectCommit()
@@ -151,7 +150,7 @@ func TestLinkRepo(t *testing.T) {
 		mock.ExpectExec(regexp.QuoteMeta(
 			"UPDATE `links` SET `deleted_at`=? WHERE `links`.`id` = ? AND `links`.`deleted_at` IS NULL",
 		)).WithArgs(
-			sqlmock.AnyArg(), // deleted_at timestamp
+			sqlmock.AnyArg(),
 			testLink.ID,
 		).WillReturnResult(sqlmock.NewResult(0, 1))
 		mock.ExpectCommit()

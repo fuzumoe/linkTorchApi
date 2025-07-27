@@ -16,7 +16,6 @@ import (
 	"github.com/fuzumoe/linkTorch-api/internal/repository"
 )
 
-// setupMockDB initializes a GORM DB backed by sqlmock.
 func setupMockDB(t *testing.T) (*gorm.DB, sqlmock.Sqlmock) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -237,14 +236,14 @@ func TestURLRepo(t *testing.T) {
 			analysisRes.H5Count,
 			analysisRes.H6Count,
 			analysisRes.HasLoginForm,
-			0, // default internal_link_count
-			0, // default external_link_count
-			0, // default broken_link_count
+			0,
+			0,
+			0,
 			sqlmock.AnyArg(),
 			sqlmock.AnyArg(),
 			sqlmock.AnyArg(),
 		).WillReturnResult(sqlmock.NewResult(30, 1))
-		// Updated expectation for links - includes is_external and status_code.
+
 		mock.ExpectExec(regexp.QuoteMeta(
 			"INSERT INTO `links` (`url_id`,`href`,`is_external`,`status_code`,`created_at`,`updated_at`,`deleted_at`) VALUES (?,?,?,?,?,?,?),(?,?,?,?,?,?,?)",
 		)).WithArgs(
@@ -289,7 +288,6 @@ func TestURLRepo(t *testing.T) {
 		repo := repository.NewURLRepo(db)
 		id := uint(15)
 
-		// Expected JSON response returned by the raw query.
 		expectedJSON := `{"url":{"id":15,"user_id":99,"original_url":"https://results.test","status":"completed","created_at":"2025-07-11T00:00:00.000000Z","updated_at":"2025-07-11T00:00:00.000000Z"},"analysis_results":[],"links":[]}`
 
 		mock.ExpectQuery(regexp.QuoteMeta(
@@ -352,54 +350,47 @@ WHERE u.id = ?`)).
 
 		resultURL, resultAR, resultLinks, err := repo.ResultsWithDetails(id)
 		assert.NoError(t, err)
-		// Check URL fields
+
 		assert.Equal(t, uint(15), resultURL.ID)
 		assert.Equal(t, uint(99), resultURL.UserID)
 		assert.Equal(t, "https://results.test", resultURL.OriginalURL)
 		assert.Equal(t, "completed", resultURL.Status)
-		// Check that analysis results and links arrays are empty
+
 		assert.Len(t, resultAR, 0)
 		assert.Len(t, resultLinks, 0)
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
-	// Add this test case to the TestURLRepo function
+
 	t.Run("CountByUser", func(t *testing.T) {
 		db, mock := setupMockDB(t)
 		repo := repository.NewURLRepo(db)
 		userID := uint(5)
 
-		// Setup mock expectation for the Count query
 		mock.ExpectQuery(regexp.QuoteMeta(
 			"SELECT count(*) FROM `urls` WHERE user_id = ? AND `urls`.`deleted_at` IS NULL",
 		)).WithArgs(userID).WillReturnRows(
 			sqlmock.NewRows([]string{"count(*)"}).AddRow(10),
 		)
 
-		// Call the method under test
 		count, err := repo.CountByUser(userID)
 
-		// Verify results
 		assert.NoError(t, err)
 		assert.Equal(t, 10, count)
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 
-	// Add a test case for when CountByUser returns an error
 	t.Run("CountByUser_Error", func(t *testing.T) {
 		db, mock := setupMockDB(t)
 		repo := repository.NewURLRepo(db)
 		userID := uint(5)
 
-		// Setup mock to return an error
 		expectedErr := errors.New("database error")
 		mock.ExpectQuery(regexp.QuoteMeta(
 			"SELECT count(*) FROM `urls` WHERE user_id = ? AND `urls`.`deleted_at` IS NULL",
 		)).WithArgs(userID).WillReturnError(expectedErr)
 
-		// Call the method under test
 		count, err := repo.CountByUser(userID)
 
-		// Verify error is returned
 		assert.Error(t, err)
 		assert.Equal(t, expectedErr, err)
 		assert.Equal(t, 0, count)

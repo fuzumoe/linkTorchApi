@@ -18,7 +18,6 @@ import (
 	"github.com/fuzumoe/linkTorch-api/internal/repository"
 )
 
-// MockURLService implements the service.URLService interface for testing
 type MockURLService struct {
 	mock.Mock
 }
@@ -103,22 +102,18 @@ func (m *MockURLService) AdjustCrawlerWorkers(action string, count int) error {
 	return args.Error(0)
 }
 
-// setupHandler sets up a test handler with a gin engine and mocked URLService.
 func setupHandler(t *testing.T) (*gin.Engine, *MockURLService) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 
-	// Mock authentication
 	r.Use(func(c *gin.Context) {
 		c.Set("user_id", uint(1))
 		c.Next()
 	})
 
-	// Create handler with mock service
 	urlService := &MockURLService{}
 	urlHandler := handler.NewURLHandler(urlService)
 
-	// Register routes
 	apiGroup := r.Group("/api")
 	urlHandler.RegisterProtectedRoutes(apiGroup)
 
@@ -128,22 +123,18 @@ func setupHandler(t *testing.T) (*gin.Engine, *MockURLService) {
 func TestCreate(t *testing.T) {
 	r, urlService := setupHandler(t)
 
-	// Mock service behavior
 	urlService.On("Create", &model.CreateURLInputDTO{
 		OriginalURL: "http://example.com",
 		UserID:      uint(1),
 	}).Return(uint(1), nil)
 
-	// Create test request
 	reqBody := []byte(`{"original_url":"http://example.com"}`)
 	req, _ := http.NewRequest(http.MethodPost, "/api/urls", bytes.NewBuffer(reqBody))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
-	// Perform request
 	r.ServeHTTP(w, req)
 
-	// Assert response
 	assert.Equal(t, http.StatusCreated, w.Code)
 
 	var response map[string]interface{}
@@ -151,14 +142,12 @@ func TestCreate(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, float64(1), response["id"])
 
-	// Verify mock was called
 	urlService.AssertExpectations(t)
 }
 
 func TestGet(t *testing.T) {
 	r, urlService := setupHandler(t)
 
-	// Mock service behavior
 	urlService.On("Get", uint(1)).Return(&model.URLDTO{
 		ID:          1,
 		OriginalURL: "http://example.com",
@@ -166,14 +155,11 @@ func TestGet(t *testing.T) {
 		UserID:      1,
 	}, nil)
 
-	// Create test request
 	req, _ := http.NewRequest(http.MethodGet, "/api/urls/1", nil)
 	w := httptest.NewRecorder()
 
-	// Perform request
 	r.ServeHTTP(w, req)
 
-	// Assert response
 	assert.Equal(t, http.StatusOK, w.Code)
 
 	var response map[string]interface{}
@@ -183,14 +169,12 @@ func TestGet(t *testing.T) {
 	assert.Equal(t, "http://example.com", response["original_url"])
 	assert.Equal(t, model.StatusQueued, response["status"])
 
-	// Verify mock was called
 	urlService.AssertExpectations(t)
 }
 
 func TestList(t *testing.T) {
 	r, urlService := setupHandler(t)
 
-	// Mock service behavior
 	urlService.On("List", uint(1), repository.Pagination{
 		Page:     1,
 		PageSize: 10,
@@ -209,14 +193,11 @@ func TestList(t *testing.T) {
 		},
 	}, nil)
 
-	// Create test request
 	req, _ := http.NewRequest(http.MethodGet, "/api/urls?page=1&page_size=10", nil)
 	w := httptest.NewRecorder()
 
-	// Perform request
 	r.ServeHTTP(w, req)
 
-	// Assert response
 	assert.Equal(t, http.StatusOK, w.Code)
 
 	var response map[string]interface{}
@@ -225,28 +206,23 @@ func TestList(t *testing.T) {
 	assert.NotNil(t, response["data"])
 	assert.NotNil(t, response["pagination"])
 
-	// Verify mock was called
 	urlService.AssertExpectations(t)
 }
 
 func TestUpdate(t *testing.T) {
 	r, urlService := setupHandler(t)
 
-	// Mock service behavior
 	urlService.On("Update", uint(1), &model.UpdateURLInput{
 		OriginalURL: "http://updated-example.com",
 	}).Return(nil)
 
-	// Create test request
 	reqBody := []byte(`{"original_url":"http://updated-example.com"}`)
 	req, _ := http.NewRequest(http.MethodPut, "/api/urls/1", bytes.NewBuffer(reqBody))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
-	// Perform request
 	r.ServeHTTP(w, req)
 
-	// Assert response
 	assert.Equal(t, http.StatusOK, w.Code)
 
 	var response map[string]interface{}
@@ -254,24 +230,19 @@ func TestUpdate(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "updated", response["message"])
 
-	// Verify mock was called
 	urlService.AssertExpectations(t)
 }
 
 func TestDelete(t *testing.T) {
 	r, urlService := setupHandler(t)
 
-	// Mock service behavior
 	urlService.On("Delete", uint(1)).Return(nil)
 
-	// Create test request
 	req, _ := http.NewRequest(http.MethodDelete, "/api/urls/1", nil)
 	w := httptest.NewRecorder()
 
-	// Perform request
 	r.ServeHTTP(w, req)
 
-	// Assert response
 	assert.Equal(t, http.StatusOK, w.Code)
 
 	var response map[string]interface{}
@@ -279,24 +250,19 @@ func TestDelete(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "deleted", response["message"])
 
-	// Verify mock was called
 	urlService.AssertExpectations(t)
 }
 
 func TestStart(t *testing.T) {
 	r, urlService := setupHandler(t)
 
-	// Mock service behavior
 	urlService.On("Start", uint(1)).Return(nil)
 
-	// Create test request
 	req, _ := http.NewRequest(http.MethodPatch, "/api/urls/1/start", nil)
 	w := httptest.NewRecorder()
 
-	// Perform request
 	r.ServeHTTP(w, req)
 
-	// Assert response
 	assert.Equal(t, http.StatusAccepted, w.Code)
 
 	var response map[string]interface{}
@@ -304,24 +270,19 @@ func TestStart(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, model.StatusQueued, response["status"])
 
-	// Verify mock was called
 	urlService.AssertExpectations(t)
 }
 
 func TestStop(t *testing.T) {
 	r, urlService := setupHandler(t)
 
-	// Mock service behavior
 	urlService.On("Stop", uint(1)).Return(nil)
 
-	// Create test request
 	req, _ := http.NewRequest(http.MethodPatch, "/api/urls/1/stop", nil)
 	w := httptest.NewRecorder()
 
-	// Perform request
 	r.ServeHTTP(w, req)
 
-	// Assert response
 	assert.Equal(t, http.StatusAccepted, w.Code)
 
 	var response map[string]interface{}
@@ -329,14 +290,12 @@ func TestStop(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, model.StatusStopped, response["status"])
 
-	// Verify mock was called
 	urlService.AssertExpectations(t)
 }
 
 func TestResults(t *testing.T) {
 	r, urlService := setupHandler(t)
 
-	// Mock service behavior - the handler calls ResultsWithDetails, not Results
 	urlService.On("ResultsWithDetails", uint(1)).Return(
 		&model.URL{
 			ID:          1,
@@ -362,25 +321,20 @@ func TestResults(t *testing.T) {
 		nil,
 	)
 
-	// Create test request
 	req, _ := http.NewRequest(http.MethodGet, "/api/urls/1/results", nil)
 	w := httptest.NewRecorder()
 
-	// Perform request
 	r.ServeHTTP(w, req)
 
-	// Assert response
 	assert.Equal(t, http.StatusOK, w.Code)
 
 	var response map[string]interface{}
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 
-	// Check the structure matches URLResultsDTO
 	assert.NotNil(t, response["url"])
 	assert.NotNil(t, response["analysis_results"])
 	assert.NotNil(t, response["links"])
 
-	// Verify mock was called
 	urlService.AssertExpectations(t)
 }

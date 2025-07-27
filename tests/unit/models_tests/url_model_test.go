@@ -107,16 +107,13 @@ func TestURL(t *testing.T) {
 			},
 		}
 
-		// Marshal to JSON
 		jsonData, err := json.Marshal(paginatedResponse)
 		require.NoError(t, err, "Marshaling should not produce an error")
 
-		// Unmarshal back to struct
 		var unmarshaled map[string]interface{}
 		err = json.Unmarshal(jsonData, &unmarshaled)
 		require.NoError(t, err, "Unmarshaling should not produce an error")
 
-		// Check structure
 		data, ok := unmarshaled["data"].([]interface{})
 		require.True(t, ok, "Should have 'data' array field")
 		require.Len(t, data, 1, "Data should have 1 item")
@@ -138,7 +135,6 @@ func TestURL(t *testing.T) {
 
 		assert.Equal(t, input.UserID, u.UserID, "UserID should match")
 		assert.Equal(t, input.OriginalURL, u.OriginalURL, "OriginalURL should match")
-		// Expect default status to be "queued".
 		assert.Equal(t, model.StatusQueued, u.Status, "Status should default to 'queued'")
 		assert.NotZero(t, u.CreatedAt, "CreatedAt should be set")
 		assert.NotZero(t, u.UpdatedAt, "UpdatedAt should be set")
@@ -206,11 +202,7 @@ func TestURL(t *testing.T) {
 		assert.Equal(t, "/path", parsed.Path, "Path should be '/path'")
 	})
 
-	// New tests for JSON unmarshaling of AnalysisResult and Link
-
 	t.Run("AnalysisResult JSON", func(t *testing.T) {
-		// Adjust the JSON payload to match your AnalysisResult struct.
-		// Ensure that has_login_form is a proper JSON boolean.
 		jsonStr := `{
             "id": 1,
             "url_id": 1,
@@ -236,8 +228,6 @@ func TestURL(t *testing.T) {
 	})
 
 	t.Run("Link JSON", func(t *testing.T) {
-		// Adjust the JSON payload to match your Link struct.
-		// Ensure that is_external is a proper JSON boolean.
 		jsonStr := `{
             "id": 1,
             "url_id": 1,

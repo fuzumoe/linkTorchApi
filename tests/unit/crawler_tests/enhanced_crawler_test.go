@@ -15,7 +15,6 @@ import (
 	"github.com/fuzumoe/linkTorch-api/internal/repository"
 )
 
-// MockURLRepository is a mock implementation of repository.URLRepository
 type MockURLRepository struct {
 	mock.Mock
 }
@@ -76,7 +75,6 @@ func (m *MockURLRepository) ResultsWithDetails(id uint) (*model.URL, []*model.An
 	return args.Get(0).(*model.URL), args.Get(1).([]*model.AnalysisResult), args.Get(2).([]*model.Link), args.Error(3)
 }
 
-// MockAnalyzer is a mock implementation of analyzer.Analyzer
 type MockAnalyzer struct {
 	mock.Mock
 }
@@ -86,26 +84,20 @@ func (m *MockAnalyzer) Analyze(ctx context.Context, u *url.URL) (*model.Analysis
 	return args.Get(0).(*model.AnalysisResult), args.Get(1).([]model.Link), args.Error(2)
 }
 
-// TestEnhancedCrawler tests the enhanced crawler features
 func TestEnhancedCrawler(t *testing.T) {
-	// Create mocks
+
 	mockRepo := new(MockURLRepository)
 	mockAnalyzer := new(MockAnalyzer)
 
-	// Create the crawler pool with small buffer sizes for testing
 	pool := crawler.New(mockRepo, mockAnalyzer, 2, 10, 1*time.Second)
 
-	// Start a context for the test
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Start the crawler pool
 	go pool.Start(ctx)
 
-	// Let the crawler start up
 	time.Sleep(100 * time.Millisecond)
 
-	// Set up expectations for the mock repository
 	testURL := &model.URL{
 		ID:          1,
 		OriginalURL: "http://example.com",
@@ -115,7 +107,6 @@ func TestEnhancedCrawler(t *testing.T) {
 	mockRepo.On("UpdateStatus", uint(1), model.StatusRunning).Return(nil)
 	mockRepo.On("FindByID", uint(1)).Return(testURL, nil)
 
-	// Mock the analyzer to return some results
 	analysisResult := &model.AnalysisResult{
 		URLID:       1,
 		Title:       "Example Domain",
@@ -131,19 +122,15 @@ func TestEnhancedCrawler(t *testing.T) {
 		},
 	}
 
-	// Mock analyzer.Analyze to return the mock data
 	mockAnalyzer.On("Analyze", mock.Anything, mock.Anything).Return(analysisResult, links, nil)
 
-	// Mock repository to accept the results
 	mockRepo.On("SaveResults", uint(1), analysisResult, links).Return(nil)
 	mockRepo.On("FindByID", uint(1)).Return(testURL, nil)
 	mockRepo.On("UpdateStatus", uint(1), model.StatusDone).Return(nil)
 
-	// Create a wait group to wait for results
 	var wg sync.WaitGroup
 	wg.Add(1)
 
-	// Set up a goroutine to collect and verify results
 	resultCh := pool.GetResults()
 	var receivedResult crawler.CrawlResult
 
@@ -157,34 +144,27 @@ func TestEnhancedCrawler(t *testing.T) {
 		}
 	}()
 
-	// Enqueue a URL for crawling with high priority
 	pool.EnqueueWithPriority(1, 8)
 
-	// Wait for the result
 	wg.Wait()
 
-	// Check that we got the expected result
 	assert.Equal(t, uint(1), receivedResult.URLID)
 	assert.Equal(t, model.StatusDone, receivedResult.Status)
 	assert.Equal(t, 1, receivedResult.LinkCount)
 	assert.Nil(t, receivedResult.Error)
 
-	// Test dynamic worker adjustment
 	pool.AdjustWorkers(crawler.ControlCommand{
 		Action: "add",
 		Count:  1,
 	})
 
-	// Let the adjustment take effect
 	time.Sleep(100 * time.Millisecond)
 
-	// Test removing workers
 	pool.AdjustWorkers(crawler.ControlCommand{
 		Action: "remove",
 		Count:  1,
 	})
 
-	// Ensure clean shutdown
 	cancel()
 	time.Sleep(100 * time.Millisecond)
 }

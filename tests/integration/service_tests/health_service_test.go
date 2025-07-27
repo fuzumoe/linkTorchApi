@@ -9,7 +9,7 @@ import (
 )
 
 func TestHealthServiceIntegration(t *testing.T) {
-	// Setup test database.
+
 	db := utils.SetupTest(t)
 	defer utils.CleanTestData(t)
 
@@ -24,7 +24,7 @@ func TestHealthServiceIntegration(t *testing.T) {
 		if !status.Healthy {
 			t.Errorf("expected Healthy to be true")
 		}
-		// Ensure the checked timestamp is recent.
+
 		if time.Since(status.Checked) > 5*time.Second {
 			t.Errorf("unexpected Checked timestamp: %v", status.Checked)
 		}

@@ -47,7 +47,7 @@ func TestAnalysisResult(t *testing.T) {
 		assert.Equal(t, result.HasLoginForm, dto.HasLoginForm, "HasLoginForm should match")
 		assert.WithinDuration(t, result.CreatedAt, dto.CreatedAt, time.Second, "CreatedAt should match")
 		assert.WithinDuration(t, result.UpdatedAt, dto.UpdatedAt, time.Second, "UpdatedAt should match")
-		// Note: The DTO does not include link count fields.
+
 	})
 
 	t.Run("From Create Input", func(t *testing.T) {
@@ -76,7 +76,6 @@ func TestAnalysisResult(t *testing.T) {
 		assert.Equal(t, input.H5Count, result.H5Count, "H5Count should match")
 		assert.Equal(t, input.H6Count, result.H6Count, "H6Count should match")
 		assert.Equal(t, input.HasLoginForm, result.HasLoginForm, "HasLoginForm should match")
-		// New fields should default to zero
 		assert.Equal(t, 0, result.InternalLinkCount, "InternalLinkCount should default to zero")
 		assert.Equal(t, 0, result.ExternalLinkCount, "ExternalLinkCount should default to zero")
 		assert.Equal(t, 0, result.BrokenLinkCount, "BrokenLinkCount should default to zero")

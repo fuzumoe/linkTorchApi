@@ -12,15 +12,13 @@ import (
 )
 
 func TestAnalysisResultRepo_Integration(t *testing.T) {
-	// Get a clean database state.
+
 	db := utils.SetupTest(t)
 
-	// Create repositories.
 	analysisRepo := repository.NewAnalysisResultRepo(db)
 	urlRepo := repository.NewURLRepo(db)
 	userRepo := repository.NewUserRepo(db)
 
-	// First create a test user and URL.
 	testUser := &model.User{
 		Username: "analysisowner",
 		Email:    "analysisowner@example.com",
@@ -39,7 +37,6 @@ func TestAnalysisResultRepo_Integration(t *testing.T) {
 	require.NoError(t, err, "Should create URL without error")
 	require.NotZero(t, testURL.ID, "URL ID should be set")
 
-	// Test analysis data.
 	testAnalysis := &model.AnalysisResult{
 		URLID:        testURL.ID,
 		HTMLVersion:  "HTML5",
@@ -56,7 +53,7 @@ func TestAnalysisResultRepo_Integration(t *testing.T) {
 	defaultPage := repository.Pagination{Page: 1, PageSize: 10}
 
 	t.Run("Create", func(t *testing.T) {
-		// Pass nil for links if none exist.
+
 		err := analysisRepo.Create(testAnalysis, nil)
 		require.NoError(t, err, "Should create analysis result without error")
 		assert.NotZero(t, testAnalysis.ID, "Analysis ID should be set after creation")
@@ -65,7 +62,7 @@ func TestAnalysisResultRepo_Integration(t *testing.T) {
 	})
 
 	t.Run("ListByURL", func(t *testing.T) {
-		// Create another analysis for the same URL.
+
 		secondAnalysis := &model.AnalysisResult{
 			URLID:        testURL.ID,
 			HTMLVersion:  "HTML4",
@@ -81,7 +78,6 @@ func TestAnalysisResultRepo_Integration(t *testing.T) {
 		err := analysisRepo.Create(secondAnalysis, nil)
 		require.NoError(t, err, "Should create second analysis")
 
-		// Create another URL and analysis for it.
 		anotherURL := &model.URL{
 			UserID:      testUser.ID,
 			OriginalURL: "https://another-example.com",
@@ -105,17 +101,14 @@ func TestAnalysisResultRepo_Integration(t *testing.T) {
 		err = analysisRepo.Create(otherURLAnalysis, nil)
 		require.NoError(t, err, "Should create analysis for other URL")
 
-		// Test listing analyses for our test URL.
 		analyses, err := analysisRepo.ListByURL(testURL.ID, defaultPage)
 		require.NoError(t, err, "Should list analyses by URL")
 		assert.Len(t, analyses, 2, "Should have 2 analyses for test URL")
 
-		// Verify the returned analyses belong to our test URL.
 		for _, a := range analyses {
 			assert.Equal(t, testURL.ID, a.URLID, "Analysis should belong to test URL")
 		}
 
-		// Test listing for the other URL.
 		otherURLAnalyses, err := analysisRepo.ListByURL(anotherURL.ID, defaultPage)
 		require.NoError(t, err, "Should list analyses for other URL")
 		assert.Len(t, otherURLAnalyses, 1, "Should have 1 analysis for other URL")
@@ -125,7 +118,7 @@ func TestAnalysisResultRepo_Integration(t *testing.T) {
 	})
 
 	t.Run("ListByURL_EmptyResult", func(t *testing.T) {
-		// Create a URL without analyses.
+
 		emptyURL := &model.URL{
 			UserID:      testUser.ID,
 			OriginalURL: "https://empty-analysis.com",
@@ -134,21 +127,17 @@ func TestAnalysisResultRepo_Integration(t *testing.T) {
 		err := urlRepo.Create(emptyURL)
 		require.NoError(t, err, "Should create empty URL")
 
-		// Should return empty slice, not error.
 		analyses, err := analysisRepo.ListByURL(emptyURL.ID, defaultPage)
 		require.NoError(t, err, "Should not error for URL without analyses")
 		assert.Empty(t, analyses, "Should return empty slice for URL without analyses")
 	})
 
 	t.Run("Verify_Through_URL_Preload", func(t *testing.T) {
-		// Verify that analyses are correctly associated with URLs by checking preloading.
 		foundURL, err := urlRepo.FindByID(testURL.ID)
 		require.NoError(t, err, "Should find URL with preloaded analyses")
 
-		// Verify we have two analysis results.
 		assert.Len(t, foundURL.AnalysisResults, 2, "URL should have 2 preloaded analyses")
 
-		// Check that the preloaded analyses have the correct data.
 		var foundOriginal, foundSecond bool
 		for _, ar := range foundURL.AnalysisResults {
 			if ar.HTMLVersion == "HTML5" && ar.Title == "Test Page" {

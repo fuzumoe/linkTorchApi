@@ -17,9 +17,6 @@ import (
 )
 
 func TestLinkChecker_Run(t *testing.T) {
-	// It responds on:
-	//  - /ok: HEAD returns 200.
-	//  - /get: HEAD returns MethodNotAllowed, GET returns 200.
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/ok":
@@ -47,23 +44,19 @@ func TestLinkChecker_Run(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	// Create a new linkChecker instance using the exported constructor.
 	lc := analyzer.NewLinkChecker(2, 2*time.Second)
 	require.NotNil(t, lc)
 
-	// Override the linkChecker's HTTP client so that all requests go to our test server.
 	lcValue := reflect.ValueOf(lc).Elem()
 	clientField := lcValue.FieldByName("client")
 	require.True(t, clientField.IsValid(), "client field must be valid")
 	ptrToClient := unsafe.Pointer(clientField.UnsafeAddr())
 	reflect.NewAt(clientField.Type(), ptrToClient).Elem().Set(reflect.ValueOf(ts.Client()))
 
-	// Build two links using our test server endpoints.
 	link1 := model.Link{Href: ts.URL + "/ok"}
 	link2 := model.Link{Href: ts.URL + "/get"}
 	links := []model.Link{link1, link2}
 
-	// Run the link checker.
 	t.Run("Run LinkChecker", func(t *testing.T) {
 		updatedLinks := lc.Run(context.Background(), links)
 		require.Len(t, updatedLinks, 2, "Expected two links returned by Run()")

@@ -15,7 +15,6 @@ import (
 	"github.com/fuzumoe/linkTorch-api/internal/repository"
 )
 
-// setupTokenMockDB initializes a GORM DB backed by sqlmock.
 func setupTokenMockDB(t *testing.T) (*gorm.DB, sqlmock.Sqlmock) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -40,15 +39,14 @@ func TestTokenRepo(t *testing.T) {
 		}
 
 		mock.ExpectBegin()
-		// Update to match the actual SQL query (without ON DUPLICATE KEY)
 		exec := mock.ExpectExec(regexp.QuoteMeta(
 			"INSERT INTO `blacklisted_tokens` (`jti`,`expires_at`,`created_at`,`deleted_at`) VALUES (?,?,?,?)",
 		))
 		exec.WithArgs(
 			testToken.JTI,
 			testToken.ExpiresAt,
-			sqlmock.AnyArg(), // CreatedAt will be set by GORM
-			sqlmock.AnyArg(), // DeletedAt will be NULL
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
 		)
 		exec.WillReturnResult(sqlmock.NewResult(1, 1))
 		mock.ExpectCommit()
@@ -63,7 +61,6 @@ func TestTokenRepo(t *testing.T) {
 		repo := repository.NewTokenRepo(db)
 		jti := "existing-jwt-id"
 
-		// Update to match the actual SQL query (without expires_at > ?)
 		mock.ExpectQuery(regexp.QuoteMeta(
 			"SELECT count(*) FROM `blacklisted_tokens` WHERE jti = ? AND `blacklisted_tokens`.`deleted_at` IS NULL",
 		)).WithArgs(jti).WillReturnRows(
@@ -81,7 +78,6 @@ func TestTokenRepo(t *testing.T) {
 		repo := repository.NewTokenRepo(db)
 		jti := "non-existing-jwt-id"
 
-		// Update to match the actual SQL query (without expires_at > ?)
 		mock.ExpectQuery(regexp.QuoteMeta(
 			"SELECT count(*) FROM `blacklisted_tokens` WHERE jti = ? AND `blacklisted_tokens`.`deleted_at` IS NULL",
 		)).WithArgs(jti).WillReturnRows(
@@ -99,7 +95,6 @@ func TestTokenRepo(t *testing.T) {
 		repo := repository.NewTokenRepo(db)
 		jti := "error-jwt-id"
 
-		// Update to match the actual SQL query (without expires_at > ?)
 		mock.ExpectQuery(regexp.QuoteMeta(
 			"SELECT count(*) FROM `blacklisted_tokens` WHERE jti = ? AND `blacklisted_tokens`.`deleted_at` IS NULL",
 		)).WithArgs(jti).WillReturnError(gorm.ErrInvalidDB)
@@ -139,7 +134,7 @@ func TestTokenRepo(t *testing.T) {
 		)).WithArgs(
 			sqlmock.AnyArg(),
 			sqlmock.AnyArg(),
-		).WillReturnResult(sqlmock.NewResult(0, 0)) // 0 rows deleted
+		).WillReturnResult(sqlmock.NewResult(0, 0))
 		mock.ExpectCommit()
 
 		err := repo.RemoveExpired()
@@ -172,18 +167,16 @@ func TestTokenRepo(t *testing.T) {
 		testToken := &model.BlacklistedToken{
 			JTI:       "test-jwt-id-123",
 			ExpiresAt: time.Now().Add(24 * time.Hour),
-			// CreatedAt intentionally omitted
 		}
 
-		// Set up the mock with the actual SQL query
 		mock.ExpectBegin()
 		mock.ExpectExec(regexp.QuoteMeta(
 			"INSERT INTO `blacklisted_tokens` (`jti`,`expires_at`,`created_at`,`deleted_at`) VALUES (?,?,?,?)",
 		)).WithArgs(
 			testToken.JTI,
 			testToken.ExpiresAt,
-			sqlmock.AnyArg(), // CreatedAt will be set by GORM
-			sqlmock.AnyArg(), // DeletedAt will be NULL
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
 		).WillReturnResult(sqlmock.NewResult(1, 1))
 		mock.ExpectCommit()
 

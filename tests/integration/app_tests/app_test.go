@@ -1,8 +1,6 @@
 package app_test
 
 import (
-
-	// Add this import
 	"context"
 	"encoding/json"
 	"fmt"
@@ -26,7 +24,6 @@ import (
 	"github.com/fuzumoe/linkTorch-api/tests/utils"
 )
 
-// Helper function to check if a string contains any of the given values.
 func contains(s string, values []string) bool {
 	for _, v := range values {
 		if strings.Contains(s, v) {
@@ -36,7 +33,6 @@ func contains(s string, values []string) bool {
 	return false
 }
 
-// dummyCrawlerPool is a testing implementation of crawler.Pool.
 type dummyCrawlerPool struct {
 	startFunc           func(ctx context.Context)
 	EnqueueFunc         func(id uint)
@@ -84,7 +80,6 @@ func (d *dummyCrawlerPool) AdjustWorkers(cmd crawler.ControlCommand) {
 }
 
 func TestAppRun_Integration(t *testing.T) {
-	// Setup test database just once
 	utils.SetupTest(t)
 	defer utils.CleanTestData(t)
 
@@ -97,7 +92,6 @@ func TestAppRun_Integration(t *testing.T) {
 	})
 }
 
-// Helper to setup the app and assign port/baseURL
 func setupAppHelper(t *testing.T, port *int, baseURL *string) {
 	dbHost := os.Getenv("DB_HOST")
 	if dbHost == "" {
@@ -132,11 +126,11 @@ func setupAppHelper(t *testing.T, port *int, baseURL *string) {
 			JWTSecret:       "test-secret",
 			ServerHost:      "127.0.0.1",
 			ServerPort:      fmt.Sprintf("%d", *port),
-			ServerMode:      "debug",           // Enable debug mode
-			DevUserEmail:    "dev@example.com", // Set dev user email
-			DevUserPassword: "devpassword123",  // Set dev user password
-			DevUserName:     "devuser",         // Set dev username
-			JWTLifetime:     24 * time.Hour,    // JWT lifetime for token generation
+			ServerMode:      "debug",
+			DevUserEmail:    "dev@example.com",
+			DevUserPassword: "devpassword123",
+			DevUserName:     "devuser",
+			JWTLifetime:     24 * time.Hour,
 		}, nil
 	})
 	t.Cleanup(func() {
@@ -159,7 +153,6 @@ func setupAppHelper(t *testing.T, port *int, baseURL *string) {
 	time.Sleep(3 * time.Second)
 }
 
-// Helper for health endpoint tests
 func healthEndpointsHelper(t *testing.T, baseURL string) {
 	healthPaths := []string{
 		"/api/v1/health",
@@ -254,24 +247,20 @@ func healthEndpointsHelper(t *testing.T, baseURL string) {
 	require.GreaterOrEqual(t, successCount, 1, "At least one health endpoint should be working")
 }
 func TestCrawlerIsRunning(t *testing.T) {
-	// Setup test database and cleanup.
 	utils.SetupTest(t)
 	defer utils.CleanTestData(t)
 
 	var crawlerStarted bool
 
-	// Create a dummy crawler pool that records when Start() is called.
 	dummyPool := &dummyCrawlerPool{
 		startFunc: func(ctx context.Context) {
 			crawlerStarted = true
-			// Block until context is cancelled.
 			<-ctx.Done()
 		},
 		EnqueueFunc:  func(id uint) {},
 		ShutdownFunc: func() {},
 	}
 
-	// Override crawler.New to return our dummy pool.
 	patches := gomonkey.ApplyFunc(crawler.New, func(_ repository.URLRepository, _ analyzer.Analyzer, workers, buf int) crawler.Pool {
 		return dummyPool
 	})
@@ -279,13 +268,11 @@ func TestCrawlerIsRunning(t *testing.T) {
 		patches.Reset()
 	})
 
-	// Find a free port - more reliable method
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	port := listener.Addr().(*net.TCPAddr).Port
 	listener.Close()
 
-	// Set up custom config without using setupAppHelper
 	testDBDSN := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true",
 		"linkTorch_user", "secret", "localhost", "3309", "linkTorch_test")
 
@@ -306,23 +293,19 @@ func TestCrawlerIsRunning(t *testing.T) {
 		configPatches.Reset()
 	})
 
-	// Run the app in a separate goroutine.
 	errChan := make(chan error, 1)
 	go func() {
 		t.Log("Starting app.Run()...")
 		errChan <- app.Run()
 	}()
 
-	// Give sufficient time for app.Run() to call our dummyPool.Start.
 	time.Sleep(500 * time.Millisecond)
 	require.True(t, crawlerStarted, "Crawler pool should have been started")
 
-	// Signal graceful shutdown by sending SIGTERM.
 	p, err := os.FindProcess(os.Getpid())
 	require.NoError(t, err)
 	p.Signal(syscall.SIGTERM)
 
-	// Wait for app.Run() to exit with a reasonable timeout
 	select {
 	case err := <-errChan:
 		require.NoError(t, err, "app.Run() should exit without error")

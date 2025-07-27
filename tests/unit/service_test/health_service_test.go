@@ -32,20 +32,15 @@ func TestHealthService(t *testing.T) {
 	})
 
 	t.Run("Mock Healthy DB", func(t *testing.T) {
-		// Create a sqlmock instance with ping monitoring enabled.
 		sqlDB, mock, err := sqlmock.New(sqlmock.MonitorPingsOption(true))
 		if err != nil {
 			t.Fatalf("failed to open sqlmock database: %v", err)
 		}
 		defer sqlDB.Close()
 
-		// Set up two ping expectations:
-		// (1) with gorm.Open (if triggered internally), and
-		// (2) for the Check() method.
 		mock.ExpectPing().WillReturnError(nil)
 		mock.ExpectPing().WillReturnError(nil)
 
-		// Use the MySQL dialector with the mocked sqlDB.
 		gdb, err := gorm.Open(mysql.New(mysql.Config{
 			Conn:                      sqlDB,
 			SkipInitializeWithVersion: true,
@@ -70,27 +65,21 @@ func TestHealthService(t *testing.T) {
 			t.Errorf("unexpected Checked timestamp")
 		}
 
-		// Ensure all expectations were met.
 		if err := mock.ExpectationsWereMet(); err != nil {
 			t.Errorf("unfulfilled expectations: %v", err)
 		}
 	})
 
 	t.Run("Mock Un healthy DB", func(t *testing.T) {
-		// Create a sqlmock instance with ping monitoring enabled.
 		sqlDB, mock, err := sqlmock.New(sqlmock.MonitorPingsOption(true))
 		if err != nil {
 			t.Fatalf("failed to open sqlmock database: %v", err)
 		}
 		defer sqlDB.Close()
 
-		// Set up two ping expectations:
-		// (1) first ping returns nil for initialization,
-		// (2) second ping (from Check()) returns an error.
 		mock.ExpectPing().WillReturnError(nil)
 		mock.ExpectPing().WillReturnError(errors.New("ping error"))
 
-		// Use the MySQL dialector with the mocked sqlDB.
 		gdb, err := gorm.Open(mysql.New(mysql.Config{
 			Conn:                      sqlDB,
 			SkipInitializeWithVersion: true,
@@ -115,7 +104,6 @@ func TestHealthService(t *testing.T) {
 			t.Errorf("unexpected Checked timestamp")
 		}
 
-		// Ensure all expectations were met.
 		if err := mock.ExpectationsWereMet(); err != nil {
 			t.Errorf("unfulfilled expectations: %v", err)
 		}

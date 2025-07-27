@@ -16,7 +16,6 @@ import (
 	"github.com/fuzumoe/linkTorch-api/internal/repository"
 )
 
-// testRepo implements repository.URLRepository for testing.
 type testRepo struct {
 	mu                sync.Mutex
 	statusUpdates     map[uint][]string
@@ -25,7 +24,6 @@ type testRepo struct {
 	urlStatus         map[uint]string
 }
 
-// CountByUser implements repository.URLRepository.
 func (r *testRepo) CountByUser(userID uint) (int, error) {
 	panic("unimplemented")
 }
@@ -67,7 +65,6 @@ func (r *testRepo) SaveResults(id uint, res *model.AnalysisResult, links []model
 	return nil
 }
 
-// Stub implementations for the rest of the URLRepository interface.
 func (r *testRepo) Create(u *model.URL) error { return nil }
 func (r *testRepo) Delete(id uint) error      { return nil }
 func (r *testRepo) ListByUser(userID uint, p repository.Pagination) ([]model.URL, error) {
@@ -89,7 +86,6 @@ func (r *testRepo) ResultsWithDetails(id uint) (*model.URL, []*model.AnalysisRes
 	}, []*model.AnalysisResult{}, []*model.Link{}, nil
 }
 
-// dummyAnalyzer is a dummy implementation of analyzer.Analyzer that succeeds.
 type dummyAnalyzer struct {
 	shouldError bool
 }
@@ -109,14 +105,12 @@ func (a *dummyAnalyzer) Analyze(ctx context.Context, u *url.URL) (*model.Analysi
 	return res, links, nil
 }
 
-// cancelAnalyzer always returns context.Canceled.
 type cancelAnalyzer struct{}
 
 func (a *cancelAnalyzer) Analyze(ctx context.Context, u *url.URL) (*model.AnalysisResult, []model.Link, error) {
 	return nil, nil, context.Canceled
 }
 
-// TestWorkerSuite groups all worker tests as subtests.
 func TestWorkerSuite(t *testing.T) {
 	t.Run("Process_Success", func(t *testing.T) {
 		ctx := context.Background()
@@ -153,7 +147,6 @@ func TestWorkerSuite(t *testing.T) {
 		tasks := make(chan uint, 1)
 		tasks <- 2
 
-		// Simulate an external stop after a short delay.
 		go func() {
 			time.Sleep(10 * time.Millisecond)
 			_ = repo.UpdateStatus(2, model.StatusStopped)
@@ -166,7 +159,6 @@ func TestWorkerSuite(t *testing.T) {
 		defer repo.mu.Unlock()
 		statuses, ok := repo.statusUpdates[2]
 		require.True(t, ok, "Expected status updates for task 2")
-		// Expect that processing was aborted—final status should remain "stopped".
 		assert.Equal(t, model.StatusDone, statuses[len(statuses)-1], "Final status should be Stopped")
 	})
 

@@ -14,18 +14,15 @@ import (
 )
 
 func TestAnalysisService_Integration(t *testing.T) {
-	// Setup test database.
+
 	db := utils.SetupTest(t)
 
-	// Create repositories.
 	userRepo := repository.NewUserRepo(db)
 	urlRepo := repository.NewURLRepo(db)
 	analysisRepo := repository.NewAnalysisResultRepo(db)
 
-	// Create AnalysisService.
 	analysisService := service.NewAnalysisService(analysisRepo)
 
-	// Create a test user.
 	testUser := &model.User{
 		Username:  "analysisUser",
 		Email:     "analysis@example.com",
@@ -36,7 +33,6 @@ func TestAnalysisService_Integration(t *testing.T) {
 	require.NoError(t, err, "Should create test user without error.")
 	require.NotZero(t, testUser.ID, "User ID should be set after creation.")
 
-	// Create a test URL for analysis results.
 	testURL := &model.URL{
 		UserID:      testUser.ID,
 		OriginalURL: "https://test-analysis.com",
@@ -50,7 +46,6 @@ func TestAnalysisService_Integration(t *testing.T) {
 
 	urlID := testURL.ID
 
-	// Create some test links for all test cases
 	testLinks := []model.Link{
 		{
 			URLID:      urlID,
@@ -93,7 +88,6 @@ func TestAnalysisService_Integration(t *testing.T) {
 			PageSize: 10,
 		}
 
-		// Record two analysis results for the same URL.
 		analysis1 := &model.AnalysisResult{
 			URLID:        urlID,
 			HTMLVersion:  "HTML5",
@@ -123,7 +117,6 @@ func TestAnalysisService_Integration(t *testing.T) {
 			UpdatedAt:    time.Now(),
 		}
 
-		// Use different links for each analysis
 		links1 := []model.Link{
 			{
 				URLID:      urlID,
@@ -147,7 +140,6 @@ func TestAnalysisService_Integration(t *testing.T) {
 		err = analysisService.Record(analysis2, links2)
 		require.NoError(t, err, "Should record second analysis result.")
 
-		// List analyses through the service.
 		results, err := analysisService.List(urlID, pagination)
 		require.NoError(t, err, "Should list analysis results without error.")
 		assert.GreaterOrEqual(t, len(results), 2, "Should return at least two analysis results for the URL.")

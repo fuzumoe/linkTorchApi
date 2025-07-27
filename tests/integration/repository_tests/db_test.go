@@ -11,9 +11,8 @@ import (
 	"github.com/fuzumoe/linkTorch-api/tests/utils"
 )
 
-// TestNewDB_Integration tests the NewDB function with a real MySQL database connection.
 func TestNewDB_Integration(t *testing.T) {
-	// fallback DSN if env var isn't set.
+
 	testDatabase := os.Getenv("TEST_DATABASE")
 	dsn := ""
 	if testDatabase == "" {

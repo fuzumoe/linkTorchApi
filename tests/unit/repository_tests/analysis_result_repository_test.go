@@ -15,7 +15,6 @@ import (
 	"github.com/fuzumoe/linkTorch-api/internal/repository"
 )
 
-// setupAnaMockDB initializes a GORM DB backed by sqlmock.
 func setupAnaMockDB(t *testing.T) (*gorm.DB, sqlmock.Sqlmock) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -45,7 +44,7 @@ func TestAnalysisResultRepo(t *testing.T) {
 			H6Count:      0,
 			HasLoginForm: true,
 		}
-		// For the Create method, we also pass an empty links slice.
+
 		links := []model.Link{}
 
 		mock.ExpectBegin()
@@ -63,18 +62,17 @@ func TestAnalysisResultRepo(t *testing.T) {
 			testResult.H5Count,
 			testResult.H6Count,
 			testResult.HasLoginForm,
-			0,                // internal_link_count default
-			0,                // external_link_count default
-			0,                // broken_link_count default
-			sqlmock.AnyArg(), // created_at
-			sqlmock.AnyArg(), // updated_at
-			sqlmock.AnyArg(), // deleted_at
+			0,
+			0,
+			0,
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
 		).WillReturnResult(sqlmock.NewResult(1, 1))
 		mock.ExpectCommit()
 
 		err := repo.Create(testResult, links)
 		assert.NoError(t, err)
-		// The Create method would update the model's ID on success.
 		assert.Equal(t, uint(1), testResult.ID)
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
@@ -101,7 +99,6 @@ func TestAnalysisResultRepo(t *testing.T) {
 			nil,
 		)
 
-		// Query for first page should include an ORDER BY clause.
 		mock.ExpectQuery(regexp.QuoteMeta(
 			"SELECT * FROM `analysis_results` WHERE url_id = ? AND `analysis_results`.`deleted_at` IS NULL ORDER BY created_at DESC LIMIT ?",
 		)).WithArgs(urlID, pagination.Limit()).WillReturnRows(rows)
@@ -136,7 +133,6 @@ func TestAnalysisResultRepo(t *testing.T) {
 		db, mock := setupAnaMockDB(t)
 		repo := repository.NewAnalysisResultRepo(db)
 		urlID := uint(5)
-		// For page 2 with PageSize = 2: Limit() = 2, Offset() = 2
 		pagination := repository.Pagination{Page: 2, PageSize: 2}
 
 		rows := sqlmock.NewRows([]string{

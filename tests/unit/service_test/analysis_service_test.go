@@ -13,7 +13,6 @@ import (
 	"github.com/fuzumoe/linkTorch-api/internal/service"
 )
 
-// MockAnalysisRepo is a mock implementation of AnalysisResultRepository.
 type MockAnalysisRepo struct {
 	mock.Mock
 }
@@ -29,11 +28,10 @@ func (m *MockAnalysisRepo) ListByURL(urlID uint, p repository.Pagination) ([]mod
 }
 
 func TestAnalysisService_Record(t *testing.T) {
-	// Setup
+
 	mockRepo := new(MockAnalysisRepo)
 	svc := service.NewAnalysisService(mockRepo)
 
-	// Test data
 	testResult := &model.AnalysisResult{
 		URLID:        42,
 		HTMLVersion:  "HTML5",
@@ -48,14 +46,12 @@ func TestAnalysisService_Record(t *testing.T) {
 	}
 
 	t.Run("Success", func(t *testing.T) {
-		// Setup expectations: pass an empty links slice.
+
 		emptyLinks := []model.Link{}
 		mockRepo.On("Create", testResult, emptyLinks).Return(nil).Once()
 
-		// Execute
 		err := svc.Record(testResult, emptyLinks)
 
-		// Verify
 		assert.NoError(t, err)
 		mockRepo.AssertExpectations(t)
 	})
@@ -65,10 +61,8 @@ func TestAnalysisService_Record(t *testing.T) {
 		expectedErr := errors.New("database error")
 		mockRepo.On("Create", testResult, emptyLinks).Return(expectedErr).Once()
 
-		// Execute
 		err := svc.Record(testResult, emptyLinks)
 
-		// Verify
 		assert.Error(t, err)
 		assert.Equal(t, expectedErr, err)
 		mockRepo.AssertExpectations(t)
@@ -76,15 +70,13 @@ func TestAnalysisService_Record(t *testing.T) {
 }
 
 func TestAnalysisService_List(t *testing.T) {
-	// Setup
+
 	mockRepo := new(MockAnalysisRepo)
 	svc := service.NewAnalysisService(mockRepo)
 
-	// Test data
 	urlID := uint(42)
 	pagination := repository.Pagination{Page: 1, PageSize: 10}
 
-	// Sample analysis results that would be returned by the repository
 	analysisResults := []model.AnalysisResult{
 		{
 			ID:           1,
@@ -109,17 +101,14 @@ func TestAnalysisService_List(t *testing.T) {
 	}
 
 	t.Run("Success", func(t *testing.T) {
-		// Setup expectations
+
 		mockRepo.On("ListByURL", urlID, pagination).Return(analysisResults, nil).Once()
 
-		// Execute
 		dtos, err := svc.List(urlID, pagination)
 
-		// Verify
 		require.NoError(t, err)
 		require.Len(t, dtos, 2, "Should return 2 DTOs")
 
-		// Verify first DTO
 		assert.Equal(t, uint(1), dtos[0].ID)
 		assert.Equal(t, "HTML5", dtos[0].HTMLVersion)
 		assert.Equal(t, "First Page", dtos[0].Title)
@@ -127,8 +116,6 @@ func TestAnalysisService_List(t *testing.T) {
 		assert.Equal(t, 5, dtos[0].H2Count)
 		assert.Equal(t, 3, dtos[0].H3Count)
 		assert.True(t, dtos[0].HasLoginForm)
-
-		// Verify second DTO
 		assert.Equal(t, uint(2), dtos[1].ID)
 		assert.Equal(t, "HTML4", dtos[1].HTMLVersion)
 		assert.Equal(t, "Second Page", dtos[1].Title)
@@ -141,27 +128,21 @@ func TestAnalysisService_List(t *testing.T) {
 	})
 
 	t.Run("Empty Results", func(t *testing.T) {
-		// Setup expectations - return empty results
 		mockRepo.On("ListByURL", urlID, pagination).Return([]model.AnalysisResult{}, nil).Once()
 
-		// Execute
 		dtos, err := svc.List(urlID, pagination)
 
-		// Verify
 		require.NoError(t, err)
 		assert.Empty(t, dtos, "Should return empty slice")
 		mockRepo.AssertExpectations(t)
 	})
 
 	t.Run("Repository Error", func(t *testing.T) {
-		// Setup expectations - simulate repository error
 		expectedErr := errors.New("database error")
 		mockRepo.On("ListByURL", urlID, pagination).Return([]model.AnalysisResult{}, expectedErr).Once()
 
-		// Execute
 		dtos, err := svc.List(urlID, pagination)
 
-		// Verify
 		assert.Error(t, err)
 		assert.Equal(t, expectedErr, err)
 		assert.Nil(t, dtos, "Should return nil on error")

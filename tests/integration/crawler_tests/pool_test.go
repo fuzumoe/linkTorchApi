@@ -37,7 +37,6 @@ func TestPoolIntegration(t *testing.T) {
 	)
 	require.NotNil(t, db)
 
-	// Setup & Migration subtest.
 	t.Run("Setup and Create Records", func(t *testing.T) {
 		err := db.AutoMigrate(&model.User{}, &model.URL{}, &model.AnalysisResult{}, &model.Link{})
 		require.NoError(t, err)
@@ -83,14 +82,11 @@ func TestPoolIntegration(t *testing.T) {
 		})
 	})
 
-	// Test basic processing
 	t.Run("Basic Processing", func(t *testing.T) {
 		urlRepo := repository.NewURLRepo(db)
 		analyzer := &dummyPAnalyzer{}
-		// Updated: Pass a crawlTimeout (1 second) as the last argument.
 		pool := crawler.New(urlRepo, analyzer, 2, 10, 1*time.Second)
 
-		// Create a context that can be cancelled.
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
@@ -116,7 +112,6 @@ func TestPoolIntegration(t *testing.T) {
 	t.Run("Multiple URLs", func(t *testing.T) {
 		urlRepo := repository.NewURLRepo(db)
 		analyzer := &dummyPAnalyzer{}
-		// Updated: Pass crawlTimeout parameter.
 		pool := crawler.New(urlRepo, analyzer, 1, 5, 1*time.Second)
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -124,7 +119,7 @@ func TestPoolIntegration(t *testing.T) {
 		go pool.Start(ctx)
 
 		t.Run("Enqueue Multiple URLs", func(t *testing.T) {
-			// Reset URL statuses first.
+
 			err := db.Model(&model.URL{}).Where("id IN ?", []uint{urls["basic"].ID, urls["priority"].ID}).
 				Update("status", model.StatusQueued).Error
 			require.NoError(t, err)
@@ -154,7 +149,7 @@ func TestPoolIntegration(t *testing.T) {
 	t.Run("Context Cancellation", func(t *testing.T) {
 		urlRepo := repository.NewURLRepo(db)
 		analyzer := &dummyPAnalyzer{}
-		// Updated: include crawlTimeout argument.
+
 		pool := crawler.New(urlRepo, analyzer, 1, 5, 1*time.Second)
 		ctx, cancel := context.WithCancel(context.Background())
 
@@ -184,7 +179,7 @@ func TestPoolIntegration(t *testing.T) {
 	t.Run("Already Stopped URL", func(t *testing.T) {
 		urlRepo := repository.NewURLRepo(db)
 		analyzer := &dummyPAnalyzer{}
-		// Updated: include crawlTimeout.
+
 		pool := crawler.New(urlRepo, analyzer, 1, 5, 1*time.Second)
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()

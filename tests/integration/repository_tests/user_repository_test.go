@@ -15,23 +15,18 @@ import (
 
 func TestUserRepo_CRUD_Integration(t *testing.T) {
 
-	// Get a clean database state.
 	db := utils.SetupTest(t)
 
-	// Create the user repository.
 	userRepo := repository.NewUserRepo(db)
 
-	// Define a default pagination (Page 1, PageSize 10)
 	defaultPage := repository.Pagination{Page: 1, PageSize: 10}
 
-	// Test data.
 	testUser := &model.User{
 		Username: "testuser",
 		Email:    "test@example.com",
 		Password: "securepassword",
 	}
 
-	// admin user for testing
 	adminUser := &model.User{
 		Username: "adminuser",
 		Role:     model.RoleAdmin,
@@ -39,7 +34,6 @@ func TestUserRepo_CRUD_Integration(t *testing.T) {
 		Password: "securepassword",
 	}
 
-	// crawler user for testing
 	crawlerUser := &model.User{
 		Username: "crawleruser",
 		Role:     model.RoleCrawler,
@@ -47,7 +41,6 @@ func TestUserRepo_CRUD_Integration(t *testing.T) {
 		Password: "securepassword",
 	}
 
-	//worker user for testing
 	workerUser := &model.User{
 		Username: "workeruser",
 		Role:     model.RoleWorker,
@@ -108,7 +101,7 @@ func TestUserRepo_CRUD_Integration(t *testing.T) {
 	})
 
 	t.Run("Search Users", func(t *testing.T) {
-		// Search by email
+
 		t.Run("Search by Email", func(t *testing.T) {
 			users, err := userRepo.Search("example.com", "", "", defaultPage)
 			require.NoError(t, err, "Should search users by email")
@@ -120,7 +113,6 @@ func TestUserRepo_CRUD_Integration(t *testing.T) {
 			assert.Equal(t, adminUser.Email, users[0].Email)
 		})
 
-		// Search by role
 		t.Run("Search by Role", func(t *testing.T) {
 			users, err := userRepo.Search("", string(model.RoleAdmin), "", defaultPage)
 			require.NoError(t, err, "Should search users by role")
@@ -133,7 +125,6 @@ func TestUserRepo_CRUD_Integration(t *testing.T) {
 			assert.Equal(t, model.RoleCrawler, users[0].Role)
 		})
 
-		// Search by username
 		t.Run("Search by Username", func(t *testing.T) {
 			users, err := userRepo.Search("", "", "user", defaultPage)
 			require.NoError(t, err, "Should search users by username")
@@ -145,7 +136,6 @@ func TestUserRepo_CRUD_Integration(t *testing.T) {
 			assert.Equal(t, adminUser.Username, users[0].Username)
 		})
 
-		// Combined search
 		t.Run("Combined Search", func(t *testing.T) {
 			users, err := userRepo.Search("admin", string(model.RoleAdmin), "", defaultPage)
 			require.NoError(t, err, "Should perform combined search")
@@ -159,7 +149,6 @@ func TestUserRepo_CRUD_Integration(t *testing.T) {
 			assert.Equal(t, workerUser.Username, users[0].Username)
 		})
 
-		// No results
 		t.Run("No Results", func(t *testing.T) {
 			users, err := userRepo.Search("nonexistent", "", "", defaultPage)
 			require.NoError(t, err, "Should handle search with no results")
@@ -170,9 +159,8 @@ func TestUserRepo_CRUD_Integration(t *testing.T) {
 			assert.Len(t, users, 0, "Should return empty slice for no matches")
 		})
 
-		// Pagination
 		t.Run("Pagination", func(t *testing.T) {
-			// Add more users to test pagination
+
 			for i := 0; i < 10; i++ {
 				extraUser := &model.User{
 					Username: fmt.Sprintf("extra_user_%d", i),
@@ -183,19 +171,16 @@ func TestUserRepo_CRUD_Integration(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			// Get first page with 5 results
 			page1 := repository.Pagination{Page: 1, PageSize: 5}
 			users1, err := userRepo.Search("example.com", "", "", page1)
 			require.NoError(t, err)
 			assert.Len(t, users1, 5, "Should return 5 users for first page")
 
-			// Get second page with 5 results
 			page2 := repository.Pagination{Page: 2, PageSize: 5}
 			users2, err := userRepo.Search("example.com", "", "", page2)
 			require.NoError(t, err)
 			assert.Len(t, users2, 5, "Should return 5 users for second page")
 
-			// Ensure pages have different users
 			for _, user1 := range users1 {
 				for _, user2 := range users2 {
 					assert.NotEqual(t, user1.ID, user2.ID, "Users on different pages should be different")

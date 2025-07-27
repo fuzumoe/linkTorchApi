@@ -23,7 +23,6 @@ import (
 func TestAuthHandler(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	// Setup database and services
 	db := utils.SetupTest(t)
 	defer utils.CleanTestData(t)
 
@@ -32,16 +31,13 @@ func TestAuthHandler(t *testing.T) {
 	authSvc := service.NewAuthService(userRepo, tokenRepo, "test-secret", time.Hour)
 	userSvc := service.NewUserService(userRepo)
 
-	// Create handlers
 	authHandler := handler.NewAuthHandler(authSvc, userSvc)
 
-	// Setup router with ONLY auth handler routes
 	router := gin.New()
 	router.POST("/login/basic", authHandler.LoginBasic)
 	router.POST("/login/jwt", authHandler.LoginJWT)
 	router.POST("/logout", authHandler.Logout)
 
-	// Create a test user directly through the service
 	testUser := &model.CreateUserInput{
 		Email:    "testuser@example.com",
 		Password: "testpassword",
@@ -52,7 +48,7 @@ func TestAuthHandler(t *testing.T) {
 	require.NotNil(t, userDTO)
 
 	t.Run("LoginBasic", func(t *testing.T) {
-		// Test basic auth login
+
 		creds := "testuser@example.com:testpassword"
 		encodedCreds := base64.StdEncoding.EncodeToString([]byte(creds))
 		req := httptest.NewRequest(http.MethodPost, "/login/basic", nil)
@@ -62,7 +58,6 @@ func TestAuthHandler(t *testing.T) {
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		// Verify token in response
 		var resp map[string]interface{}
 		err := json.Unmarshal(w.Body.Bytes(), &resp)
 		require.NoError(t, err)
@@ -73,7 +68,7 @@ func TestAuthHandler(t *testing.T) {
 	})
 
 	t.Run("LoginJWT", func(t *testing.T) {
-		// Test JWT login
+
 		loginPayload := handler.LoginRequest{
 			Email:    "testuser@example.com",
 			Password: "testpassword",
@@ -88,7 +83,6 @@ func TestAuthHandler(t *testing.T) {
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		// Verify token in response
 		var resp map[string]interface{}
 		err = json.Unmarshal(w.Body.Bytes(), &resp)
 		require.NoError(t, err)
@@ -99,7 +93,7 @@ func TestAuthHandler(t *testing.T) {
 	})
 
 	t.Run("Logout", func(t *testing.T) {
-		// First login to get a token
+
 		loginPayload := handler.LoginRequest{
 			Email:    "testuser@example.com",
 			Password: "testpassword",
@@ -122,7 +116,6 @@ func TestAuthHandler(t *testing.T) {
 		assert.True(t, ok, "Response should contain token")
 		assert.NotEmpty(t, token, "Token should not be empty")
 
-		// Then logout using the token
 		reqLogout := httptest.NewRequest(http.MethodPost, "/logout", nil)
 		reqLogout.Header.Set("Authorization", "Bearer "+token)
 		wLogout := httptest.NewRecorder()
@@ -130,7 +123,6 @@ func TestAuthHandler(t *testing.T) {
 		router.ServeHTTP(wLogout, reqLogout)
 		assert.Equal(t, http.StatusOK, wLogout.Code)
 
-		// Verify logout message
 		var logoutResp map[string]interface{}
 		err = json.Unmarshal(wLogout.Body.Bytes(), &logoutResp)
 		require.NoError(t, err)
@@ -138,9 +130,8 @@ func TestAuthHandler(t *testing.T) {
 		assert.Equal(t, "logged out", logoutResp["message"], "Logout response should contain success message")
 	})
 
-	// Test error cases
 	t.Run("LoginBasic_Invalid", func(t *testing.T) {
-		// Test invalid credentials
+
 		creds := "testuser@example.com:wrongpassword"
 		encodedCreds := base64.StdEncoding.EncodeToString([]byte(creds))
 		req := httptest.NewRequest(http.MethodPost, "/login/basic", nil)
@@ -148,12 +139,11 @@ func TestAuthHandler(t *testing.T) {
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
-		// Changed from 401 to 400 to match actual behavior
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 
 	t.Run("LoginJWT_Invalid", func(t *testing.T) {
-		// Test invalid credentials
+
 		loginPayload := handler.LoginRequest{
 			Email:    "testuser@example.com",
 			Password: "wrongpassword",
@@ -166,17 +156,15 @@ func TestAuthHandler(t *testing.T) {
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
-		// Changed from 401 to 400 to match actual behavior
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 
 	t.Run("Logout_NoToken", func(t *testing.T) {
-		// Test logout without token
+
 		req := httptest.NewRequest(http.MethodPost, "/logout", nil)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
-		// Changed from 401 to 400 to match actual behavior
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 }

@@ -13,7 +13,6 @@ import (
 	"github.com/fuzumoe/linkTorch-api/internal/service"
 )
 
-// MockLinkRepo is a mock implementation of LinkRepository
 type MockLinkRepo struct {
 	mock.Mock
 }
@@ -28,7 +27,6 @@ func (m *MockLinkRepo) ListByURL(urlID uint, p repository.Pagination) ([]model.L
 	return args.Get(0).([]model.Link), args.Error(1)
 }
 
-// Add the missing CountByURL method required by the ListByURL implementation
 func (m *MockLinkRepo) CountByURL(urlID uint) (int, error) {
 	args := m.Called(urlID)
 	return args.Int(0), args.Error(1)
@@ -44,7 +42,6 @@ func (m *MockLinkRepo) Delete(link *model.Link) error {
 	return args.Error(0)
 }
 
-// Helper function to test simple repo operations
 func testSimpleRepoOperation(t *testing.T, testName string, operation func(repo *MockLinkRepo) error) {
 	mockRepo := new(MockLinkRepo)
 
@@ -78,17 +75,14 @@ func TestLinkService_Add(t *testing.T) {
 	})
 }
 
-// Existing List test remains unchanged
 func TestLinkService_List(t *testing.T) {
-	// Setup
+
 	mockRepo := new(MockLinkRepo)
 	svc := service.NewLinkService(mockRepo)
 
-	// Test data
 	urlID := uint(42)
 	pagination := repository.Pagination{Page: 1, PageSize: 10}
 
-	// Sample links that would be returned by the repository
 	links := []model.Link{
 		{
 			ID:         1,
@@ -107,23 +101,19 @@ func TestLinkService_List(t *testing.T) {
 	}
 
 	t.Run("Success", func(t *testing.T) {
-		// Setup expectations
+
 		mockRepo.On("ListByURL", urlID, pagination).Return(links, nil).Once()
 
-		// Execute
 		dtos, err := svc.List(urlID, pagination)
 
-		// Verify
 		require.NoError(t, err)
 		require.Len(t, dtos, 2, "Should return 2 DTOs")
 
-		// Verify first DTO
 		assert.Equal(t, uint(1), dtos[0].ID)
 		assert.Equal(t, "https://example.com/page1", dtos[0].Href)
 		assert.True(t, dtos[0].IsExternal)
 		assert.Equal(t, 200, dtos[0].StatusCode)
 
-		// Verify second DTO
 		assert.Equal(t, uint(2), dtos[1].ID)
 		assert.Equal(t, "https://example.com/page2", dtos[1].Href)
 		assert.False(t, dtos[1].IsExternal)
@@ -154,17 +144,14 @@ func TestLinkService_List(t *testing.T) {
 	})
 }
 
-// New test for the paginated ListByURL method
 func TestLinkService_ListByURL(t *testing.T) {
-	// Setup
+
 	mockRepo := new(MockLinkRepo)
 	svc := service.NewLinkService(mockRepo)
 
-	// Test data
 	urlID := uint(42)
 	pagination := repository.Pagination{Page: 1, PageSize: 10}
 
-	// Sample links that would be returned by the repository
 	links := []model.Link{
 		{
 			ID:         1,
@@ -183,33 +170,27 @@ func TestLinkService_ListByURL(t *testing.T) {
 	}
 
 	t.Run("Success", func(t *testing.T) {
-		// Setup expectations
+
 		mockRepo.On("ListByURL", urlID, pagination).Return(links, nil).Once()
 		mockRepo.On("CountByURL", urlID).Return(2, nil).Once()
 
-		// Execute
 		result, err := svc.ListByURL(urlID, pagination)
 
-		// Verify
 		require.NoError(t, err)
 		require.NotNil(t, result)
 
-		// Check pagination metadata
 		assert.Equal(t, 1, result.Pagination.Page)
 		assert.Equal(t, 10, result.Pagination.PageSize)
 		assert.Equal(t, 2, result.Pagination.TotalItems)
 		assert.Equal(t, 1, result.Pagination.TotalPages)
 
-		// Check data
 		require.Len(t, result.Data, 2, "Should return 2 DTOs")
 
-		// Verify first DTO
 		assert.Equal(t, uint(1), result.Data[0].ID)
 		assert.Equal(t, "https://example.com/page1", result.Data[0].Href)
 		assert.True(t, result.Data[0].IsExternal)
 		assert.Equal(t, 200, result.Data[0].StatusCode)
 
-		// Verify second DTO
 		assert.Equal(t, uint(2), result.Data[1].ID)
 		assert.Equal(t, "https://example.com/page2", result.Data[1].Href)
 		assert.False(t, result.Data[1].IsExternal)
@@ -257,7 +238,6 @@ func TestLinkService_ListByURL(t *testing.T) {
 	})
 
 	t.Run("Multiple Pages", func(t *testing.T) {
-		// Test with 21 total items, which should result in 3 pages with pageSize 10
 		mockRepo.On("ListByURL", urlID, pagination).Return(links, nil).Once()
 		mockRepo.On("CountByURL", urlID).Return(21, nil).Once()
 
@@ -265,7 +245,7 @@ func TestLinkService_ListByURL(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Equal(t, 21, result.Pagination.TotalItems)
-		assert.Equal(t, 3, result.Pagination.TotalPages) // Ceil(21/10) = 3
+		assert.Equal(t, 3, result.Pagination.TotalPages)
 		mockRepo.AssertExpectations(t)
 	})
 }

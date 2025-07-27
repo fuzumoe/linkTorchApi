@@ -18,7 +18,6 @@ import (
 	"github.com/fuzumoe/linkTorch-api/internal/service"
 )
 
-// MockAuthService implements service.AuthService for testing.
 type MockAuthService struct {
 	mock.Mock
 }
@@ -71,7 +70,6 @@ func TestAuthMiddleware(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	t.Run("Basic Auth Flow", func(t *testing.T) {
-		// Define test cases for Basic HTTP Authentication
 		tests := []struct {
 			name           string
 			headerValue    string
@@ -88,7 +86,6 @@ func TestAuthMiddleware(t *testing.T) {
 				name:        "Invalid prefix",
 				headerValue: "Bearer foo",
 				setupMock: func(m *MockAuthService) {
-					// For this test, we expect Validate to be called since we're providing a Bearer token
 					m.On("Validate", "foo").Return(nil, errors.New("invalid token"))
 				},
 				expectedStatus: http.StatusUnauthorized,
@@ -115,7 +112,6 @@ func TestAuthMiddleware(t *testing.T) {
 				name:        "Authentication failure",
 				headerValue: "Basic " + base64.StdEncoding.EncodeToString([]byte("user@example.com:wrongpassword")),
 				setupMock: func(m *MockAuthService) {
-					// Expect AuthenticateBasic to be called and return an error
 					m.On("AuthenticateBasic", "user@example.com", "wrongpassword").
 						Return(nil, errors.New("invalid credentials"))
 				},
@@ -125,7 +121,6 @@ func TestAuthMiddleware(t *testing.T) {
 				name:        "Successful auth",
 				headerValue: "Basic " + base64.StdEncoding.EncodeToString([]byte("user@example.com:correctpassword")),
 				setupMock: func(m *MockAuthService) {
-					// Expect AuthenticateBasic and return a valid UserDTO
 					m.On("AuthenticateBasic", "user@example.com", "correctpassword").
 						Return(&model.UserDTO{ID: 42}, nil)
 				},
@@ -133,28 +128,24 @@ func TestAuthMiddleware(t *testing.T) {
 			},
 		}
 
-		// Iterate over test cases
 		for _, tc := range tests {
-			tc := tc // capture range variable
+			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				mockAuth := new(MockAuthService)
 				tc.setupMock(mockAuth)
 
-				// Setup Gin with the AuthMiddleware
 				router := gin.New()
 				router.Use(middleware.AuthMiddleware(mockAuth))
 				router.GET("/test", func(c *gin.Context) {
 					c.String(http.StatusOK, "passed")
 				})
 
-				// Create the HTTP request
 				req, err := http.NewRequest("GET", "/test", nil)
 				require.NoError(t, err)
 				if tc.headerValue != "" {
 					req.Header.Set("Authorization", tc.headerValue)
 				}
 
-				// Record the response
 				w := httptest.NewRecorder()
 				router.ServeHTTP(w, req)
 				require.Equal(t, tc.expectedStatus, w.Code)
@@ -163,14 +154,12 @@ func TestAuthMiddleware(t *testing.T) {
 					require.Equal(t, "passed", w.Body.String())
 				}
 
-				// Verify all expected calls on the mock
 				mockAuth.AssertExpectations(t)
 			})
 		}
 	})
 
 	t.Run("JWT Auth Flow", func(t *testing.T) {
-		// Define test cases for JWT Authentication
 		tests := []struct {
 			name           string
 			headerValue    string
@@ -193,7 +182,6 @@ func TestAuthMiddleware(t *testing.T) {
 				name:        "Token validation fails",
 				headerValue: "Bearer invalidtoken",
 				setupMock: func(m *MockAuthService) {
-					// Expect Validate to fail
 					m.On("Validate", "invalidtoken").Return(nil, errors.New("invalid token"))
 				},
 				expectedStatus: http.StatusUnauthorized,
@@ -202,7 +190,6 @@ func TestAuthMiddleware(t *testing.T) {
 				name:        "Token blacklisted",
 				headerValue: "Bearer validtoken",
 				setupMock: func(m *MockAuthService) {
-					// Create claims with a valid ID using RegisteredClaims.ID field
 					claims := &service.Claims{
 						RegisteredClaims: jwt.RegisteredClaims{
 							ID:        "abc123",
@@ -211,7 +198,6 @@ func TestAuthMiddleware(t *testing.T) {
 						UserID: 42,
 					}
 					m.On("Validate", "validtoken").Return(claims, nil)
-					// Expect the token to be blacklisted
 					m.On("IsTokenRevoked", "abc123").Return(true, nil)
 				},
 				expectedStatus: http.StatusUnauthorized,
@@ -256,21 +242,18 @@ func TestAuthMiddleware(t *testing.T) {
 			},
 		}
 
-		// Iterate over JWT auth test cases
 		for _, tc := range tests {
-			tc := tc // capture range variable
+			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				mockAuth := new(MockAuthService)
 				tc.setupMock(mockAuth)
 
-				// Setup Gin with the AuthMiddleware
 				router := gin.New()
 				router.Use(middleware.AuthMiddleware(mockAuth))
 				router.GET("/test", func(c *gin.Context) {
 					c.String(http.StatusOK, "jwt passed")
 				})
 
-				// Create the HTTP request
 				req, err := http.NewRequest("GET", "/test", nil)
 				require.NoError(t, err)
 				if tc.headerValue != "" {
@@ -284,7 +267,6 @@ func TestAuthMiddleware(t *testing.T) {
 					require.Equal(t, "jwt passed", w.Body.String())
 				}
 
-				// Verify all expected calls on the mock
 				mockAuth.AssertExpectations(t)
 			})
 		}

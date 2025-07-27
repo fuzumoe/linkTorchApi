@@ -17,7 +17,6 @@ import (
 	"github.com/fuzumoe/linkTorch-api/internal/repository"
 )
 
-// dummyURLService is a dummy implementation of service.URLService for testing.
 type dummyURLService struct{}
 
 func (s *dummyURLService) Create(in *model.CreateURLInputDTO) (uint, error) {
@@ -87,7 +86,6 @@ func (s *dummyURLService) Results(id uint) (*model.URLDTO, error) {
 	}, nil
 }
 
-// ResultsWithDetails returns the raw URL with details needed by the Results handler.
 func (s *dummyURLService) ResultsWithDetails(id uint) (*model.URL, []*model.AnalysisResult, []*model.Link, error) {
 	return &model.URL{
 		ID:          id,
@@ -97,7 +95,6 @@ func (s *dummyURLService) ResultsWithDetails(id uint) (*model.URL, []*model.Anal
 	}, []*model.AnalysisResult{}, []*model.Link{}, nil
 }
 
-// setupRouter returns a new Gin engine in test mode.
 func setupRouter() *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	return gin.New()
@@ -108,8 +105,6 @@ func TestURLHandler(t *testing.T) {
 	h := handler.NewURLHandler(svc)
 	router := setupRouter()
 
-	// Register testing endpoints.
-	// For endpoints that require user auth, we simulate it by setting "user_id" in the context.
 	router.POST("/api/urls", func(c *gin.Context) {
 		c.Set("user_id", uint(1))
 		h.Create(c)
@@ -138,10 +133,8 @@ func TestURLHandler(t *testing.T) {
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 
-		// Expect HTTP 201 Created.
 		assert.Equal(t, http.StatusCreated, w.Code)
 
-		// Decode and check response.
 		var resp map[string]interface{}
 		err = json.Unmarshal(w.Body.Bytes(), &resp)
 		require.NoError(t, err)
@@ -164,13 +157,11 @@ func TestURLHandler(t *testing.T) {
 		err = json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
-		// Verify pagination metadata
 		assert.Equal(t, 1, response.Pagination.Page)
 		assert.Equal(t, 10, response.Pagination.PageSize)
 		assert.Equal(t, 1, response.Pagination.TotalItems)
 		assert.Equal(t, 1, response.Pagination.TotalPages)
 
-		// Verify data
 		require.Len(t, response.Data, 1)
 		assert.Equal(t, "http://example.com", response.Data[0].OriginalURL)
 	})
@@ -231,7 +222,6 @@ func TestURLHandler(t *testing.T) {
 		var resp map[string]string
 		err = json.Unmarshal(w.Body.Bytes(), &resp)
 		require.NoError(t, err)
-		// Expect the status to be returned as "queued"
 		assert.Equal(t, model.StatusQueued, resp["status"])
 	})
 
@@ -245,7 +235,6 @@ func TestURLHandler(t *testing.T) {
 		var resp map[string]string
 		err = json.Unmarshal(w.Body.Bytes(), &resp)
 		require.NoError(t, err)
-		// Expect the status to be returned as "stopped"
 		assert.Equal(t, model.StatusStopped, resp["status"])
 	})
 
@@ -259,7 +248,6 @@ func TestURLHandler(t *testing.T) {
 		var dto model.URLResultsDTO
 		err = json.Unmarshal(w.Body.Bytes(), &dto)
 		require.NoError(t, err)
-		// Check that the URL inside the response has status "done" as returned by ResultsWithDetails.
 		assert.Equal(t, model.StatusDone, dto.URL.Status)
 	})
 }

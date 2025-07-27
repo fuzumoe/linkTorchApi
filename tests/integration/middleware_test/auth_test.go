@@ -19,7 +19,6 @@ import (
 	"github.com/fuzumoe/linkTorch-api/internal/service"
 )
 
-// MockAuthService implements service.AuthService for testing.
 type MockAuthService struct {
 	mock.Mock
 }
@@ -68,7 +67,6 @@ func (m *MockAuthService) CleanupExpired() error {
 	return args.Error(0)
 }
 
-// Testing the single AuthMiddleware function that handles both Basic and JWT auth
 func TestAuthMiddleware(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -128,7 +126,7 @@ func TestAuthMiddleware(t *testing.T) {
 				},
 				expectedStatus: http.StatusOK,
 				checkContext: func(t *testing.T, c *gin.Context) {
-					// Check if user info is correctly set in context
+
 					userID, exists := c.Get("user_id")
 					assert.True(t, exists)
 					assert.Equal(t, uint(42), userID)
@@ -139,18 +137,18 @@ func TestAuthMiddleware(t *testing.T) {
 
 					userRole, exists := c.Get("user_role")
 					assert.True(t, exists)
-					assert.Equal(t, model.RoleUser, userRole) // Use model.RoleUser instead of string
+					assert.Equal(t, model.RoleUser, userRole)
 				},
 			},
 		}
 
 		for _, tc := range tests {
-			tc := tc // capture range var
+			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				mockAuth := new(MockAuthService)
 				tc.setupMock(mockAuth)
 
-				var capturedContext *gin.Context // To capture the context for validation
+				var capturedContext *gin.Context
 
 				router := gin.New()
 				router.Use(middleware.AuthMiddleware(mockAuth))
@@ -193,7 +191,7 @@ func TestAuthMiddleware(t *testing.T) {
 				name:        "Invalid prefix",
 				headerValue: "Bearer foo",
 				setupMock: func(m *MockAuthService) {
-					// Even with invalid format, middleware still tries to validate
+
 					m.On("Validate", "foo").Return(nil, errors.New("invalid token"))
 				},
 				expectedStatus: http.StatusUnauthorized,
@@ -226,7 +224,7 @@ func TestAuthMiddleware(t *testing.T) {
 						},
 						UserID: 42,
 						Email:  "user@example.com",
-						Role:   model.RoleUser, // Use model.RoleUser constant
+						Role:   model.RoleUser,
 					}
 					m.On("Validate", "validtoken").Return(claims, nil)
 					m.On("IsTokenRevoked", "abc123").Return(true, nil)
@@ -245,14 +243,14 @@ func TestAuthMiddleware(t *testing.T) {
 						},
 						UserID: 42,
 						Email:  "user@example.com",
-						Role:   model.RoleAdmin, // Use model.RoleAdmin constant
+						Role:   model.RoleAdmin,
 					}
 					m.On("Validate", "validtoken").Return(claims, nil)
 					m.On("IsTokenRevoked", "abc123").Return(false, nil)
 				},
 				expectedStatus: http.StatusOK,
 				checkContext: func(t *testing.T, c *gin.Context) {
-					// Check if user info is correctly set in context
+
 					userID, exists := c.Get("user_id")
 					assert.True(t, exists)
 					assert.Equal(t, uint(42), userID)
@@ -263,7 +261,7 @@ func TestAuthMiddleware(t *testing.T) {
 
 					userRole, exists := c.Get("user_role")
 					assert.True(t, exists)
-					assert.Equal(t, model.RoleAdmin, userRole) // Use model.RoleAdmin constant
+					assert.Equal(t, model.RoleAdmin, userRole)
 
 					jti, exists := c.Get("jti")
 					assert.True(t, exists)
@@ -273,12 +271,12 @@ func TestAuthMiddleware(t *testing.T) {
 		}
 
 		for _, tc := range tests {
-			tc := tc // capture range var
+			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				mockAuth := new(MockAuthService)
 				tc.setupMock(mockAuth)
 
-				var capturedContext *gin.Context // To capture the context for validation
+				var capturedContext *gin.Context
 
 				router := gin.New()
 				router.Use(middleware.AuthMiddleware(mockAuth))
