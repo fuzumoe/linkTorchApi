@@ -10,13 +10,11 @@ import (
 	"github.com/fuzumoe/linkTorch-api/internal/service"
 )
 
-// AuthHandler provides endpoints for authentication operations.
 type AuthHandler struct {
 	authService service.AuthService
 	userService service.UserService
 }
 
-// NewAuthHandler creates a new AuthHandler.
 func NewAuthHandler(authService service.AuthService, userService service.UserService) *AuthHandler {
 	return &AuthHandler{
 		authService: authService,
@@ -24,7 +22,6 @@ func NewAuthHandler(authService service.AuthService, userService service.UserSer
 	}
 }
 
-// LoginRequest represents the expected body for login requests via JSON.
 type LoginRequest struct {
 	Email    string `json:"email" binding:"required,email"`
 	Password string `json:"password" binding:"required"`

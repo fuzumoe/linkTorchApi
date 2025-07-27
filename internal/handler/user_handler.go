@@ -11,12 +11,10 @@ import (
 	"github.com/fuzumoe/linkTorch-api/internal/service"
 )
 
-// UserHandler provides endpoints for user operations.
 type UserHandler struct {
 	userService service.UserService
 }
 
-// NewUserHandler creates a new UserHandler.
 func NewUserHandler(userService service.UserService) *UserHandler {
 	return &UserHandler{
 		userService: userService,

@@ -10,12 +10,10 @@ import (
 	"github.com/fuzumoe/linkTorch-api/internal/service"
 )
 
-// HealthHandler provides health and status endpoints.
 type HealthHandler struct {
 	healthService service.HealthService
 }
 
-// NewHealthHandler creates a new HealthHandler.
 func NewHealthHandler(hs service.HealthService) *HealthHandler {
 	return &HealthHandler{
 		healthService: hs,
