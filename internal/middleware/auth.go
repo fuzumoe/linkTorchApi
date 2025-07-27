@@ -10,7 +10,6 @@ import (
 	"github.com/fuzumoe/linkTorch-api/internal/service"
 )
 
-// AuthMiddleware returns middleware that supports HTTP Basic Auth and JWT auth using authService.
 func AuthMiddleware(authService service.AuthService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		auth := c.GetHeader("Authorization")
@@ -20,7 +19,6 @@ func AuthMiddleware(authService service.AuthService) gin.HandlerFunc {
 		}
 		const basicPrefix = "Basic "
 		if after, ok := strings.CutPrefix(auth, basicPrefix); ok {
-			// Process Basic Auth.
 			payload, err := base64.StdEncoding.DecodeString(after)
 			if err != nil {
 				c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid base64 credentials"})
@@ -38,28 +36,25 @@ func AuthMiddleware(authService service.AuthService) gin.HandlerFunc {
 				return
 			}
 			c.Set("user_id", user.ID)
+			c.Set("user_email", user.Email)
+			c.Set("user_role", user.Role)
 			c.Next()
 			return
 		} else if strings.HasPrefix(auth, "Bearer ") {
-			// Process JWT Auth.
 			tokenString := strings.TrimPrefix(auth, "Bearer ")
 			claims, err := authService.Validate(tokenString)
 			if err != nil {
 				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired token"})
 				return
 			}
-			// Optional: Check if the token is revoked.
 			revoked, err := authService.IsTokenRevoked(claims.ID)
 			if err != nil || revoked {
 				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "token has been revoked or an error occurred"})
 				return
 			}
-			// Optionally verify user still exists.
-			if _, err := authService.FindUserById(claims.UserID); err != nil {
-				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "user no longer exists"})
-				return
-			}
 			c.Set("user_id", claims.UserID)
+			c.Set("user_email", claims.Email)
+			c.Set("user_role", claims.Role)
 			c.Set("jti", claims.ID)
 			c.Next()
 			return

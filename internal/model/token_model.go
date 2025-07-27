@@ -4,16 +4,11 @@ package model
 import (
 	"time"
 
-	"github.com/dgrijalva/jwt-go"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
 // TokenClaims embeds jwt.StandardClaims and adds a UserID field.
-type TokenClaims struct {
-	UserID uint `json:"user_id"`
-	jwt.StandardClaims
-}
 
 // NewJTI generates a new unique identifier for the JWT ID (jti) claim.
 func NewJTI() string {

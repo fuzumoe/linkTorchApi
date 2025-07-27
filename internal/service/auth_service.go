@@ -12,7 +12,6 @@ import (
 	"github.com/fuzumoe/linkTorch-api/internal/repository"
 )
 
-// Error constants for token validation and management.
 var (
 	ErrTokenInvalid       = errors.New("invalid token")
 	ErrTokenExpired       = errors.New("token is expired")
@@ -23,24 +22,18 @@ var (
 // Claims defines the JWT claims.
 type Claims struct {
 	jwt.RegisteredClaims
-	UserID uint `json:"user_id"`
+	UserID uint           `json:"user_id"`
+	Email  string         `json:"email"`
+	Role   model.UserRole `json:"role"`
 }
 
-// AuthService defines authentication operations.
 type AuthService interface {
-	// AuthenticateBasic validates a user's email and password.
 	AuthenticateBasic(email, password string) (*model.UserDTO, error)
-	// Validate parses and validates a JWT token.
 	Validate(token string) (*Claims, error)
-	// IsTokenRevoked checks whether the token with the given ID was revoked.
 	IsTokenRevoked(tokenID string) (bool, error)
-	// FindUserById retrieves a user by its ID.
 	FindUserById(userID uint) (*model.UserDTO, error)
-	// Generate creates a new JWT token for the given user ID.
 	Generate(userID uint) (string, error)
-	// Invalidate invalidates a token given its ID.
 	Invalidate(tokenID string) error
-	// CleanupExpired removes expired tokens from the blacklist.
 	CleanupExpired() error
 }
 
@@ -51,7 +44,6 @@ type authService struct {
 	jwtLifetime time.Duration
 }
 
-// NewAuthService constructs a new AuthService.
 func NewAuthService(userRepo repository.UserRepository, tokenRepo repository.TokenRepository, jwtSecret string, jwtLifetime time.Duration) AuthService {
 	return &authService{
 		userRepo:    userRepo,
@@ -61,7 +53,6 @@ func NewAuthService(userRepo repository.UserRepository, tokenRepo repository.Tok
 	}
 }
 
-// AuthenticateBasic validates a user's email and password using bcrypt.
 func (a *authService) AuthenticateBasic(email, password string) (*model.UserDTO, error) {
 	user, err := a.userRepo.FindByEmail(email)
 	if err != nil {
@@ -73,13 +64,10 @@ func (a *authService) AuthenticateBasic(email, password string) (*model.UserDTO,
 	return user.ToDTO(), nil
 }
 
-// Validate parses a JWT token string and returns its claims.
 func (a *authService) Validate(tokenString string) (*Claims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
 		return []byte(a.jwtSecret), nil
 	})
-
-	// Handle parsing errors
 	if err != nil {
 		if errors.Is(err, jwt.ErrTokenExpired) {
 			return nil, ErrTokenExpired
@@ -92,7 +80,6 @@ func (a *authService) Validate(tokenString string) (*Claims, error) {
 		return nil, ErrTokenInvalid
 	}
 
-	// Check if the token has been revoked.
 	revoked, err := a.IsTokenRevoked(claims.ID)
 	if err != nil {
 		return nil, err
@@ -104,7 +91,6 @@ func (a *authService) Validate(tokenString string) (*Claims, error) {
 	return claims, nil
 }
 
-// IsTokenRevoked checks if a token has been revoked by checking if it's in the blacklist.
 func (a *authService) IsTokenRevoked(tokenID string) (bool, error) {
 	// If token ID is empty, it can't be in the blacklist.
 	if tokenID == "" {
@@ -120,7 +106,6 @@ func (a *authService) IsTokenRevoked(tokenID string) (bool, error) {
 	return isBlacklisted, nil
 }
 
-// FindUserById retrieves a user by its ID.
 func (a *authService) FindUserById(userID uint) (*model.UserDTO, error) {
 	user, err := a.userRepo.FindByID(userID)
 	if err != nil {
@@ -129,10 +114,8 @@ func (a *authService) FindUserById(userID uint) (*model.UserDTO, error) {
 	return user.ToDTO(), nil
 }
 
-// Generate creates a new JWT token for the specified user ID.
 func (a *authService) Generate(userID uint) (string, error) {
-	// Verify that the user exists
-	_, err := a.userRepo.FindByID(userID)
+	user, err := a.userRepo.FindByID(userID)
 	if err != nil {
 		return "", err
 	}
@@ -140,10 +123,12 @@ func (a *authService) Generate(userID uint) (string, error) {
 	expirationTime := time.Now().Add(a.jwtLifetime)
 	claims := &Claims{
 		UserID: userID,
+		Email:  user.Email,
+		Role:   user.Role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expirationTime),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			ID:        generateTokenID(), // Generate a unique token ID.
+			ID:        generateTokenID(),
 		},
 	}
 
@@ -155,21 +140,17 @@ func (a *authService) Generate(userID uint) (string, error) {
 
 	return tokenString, nil
 }
-
-// Invalidate adds a token to the blacklist to invalidate it.
 func (a *authService) Invalidate(tokenID string) error {
-	// If token ID is empty, we can't blacklist it.
+
 	if tokenID == "" {
 		return ErrTokenInvalid
 	}
 
-	// Create a new blacklisted token
 	blacklistedToken := &model.BlacklistedToken{
 		JTI:       tokenID,
 		ExpiresAt: time.Now().Add(a.jwtLifetime),
 	}
 
-	// Add the token to the blacklist.
 	err := a.tokenRepo.Add(blacklistedToken)
 	if err != nil {
 		return ErrTokenBlacklistFail
@@ -178,13 +159,10 @@ func (a *authService) Invalidate(tokenID string) error {
 	return nil
 }
 
-// CleanupExpired removes expired tokens from the blacklist.
 func (a *authService) CleanupExpired() error {
 	return a.tokenRepo.RemoveExpired()
 }
 
-// Helper function to generate a unique token ID.
 func generateTokenID() string {
-	// return fmt.Sprintf("%d", time.Now().UnixNano())
 	return uuid.New().String()
 }

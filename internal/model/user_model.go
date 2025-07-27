@@ -6,7 +6,6 @@ import (
 	"gorm.io/gorm"
 )
 
-// UserRole represents different user privilege levels
 type UserRole string
 
 const (
@@ -16,7 +15,6 @@ const (
 	RoleUser    UserRole = "user"
 )
 
-// User represents a registered user in the system.
 type User struct {
 	ID        uint           `gorm:"primaryKey;autoIncrement" json:"id"`
 	Username  string         `gorm:"type:varchar(255);uniqueIndex;not null" json:"username"`
@@ -29,7 +27,6 @@ type User struct {
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 }
 
-// UserDTO is used for sending user data in HTTP responses.
 type UserDTO struct {
 	ID        uint      `json:"id"`
 	Username  string    `json:"username"`
@@ -39,20 +36,24 @@ type UserDTO struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-// TableName returns the name of the table for User.
 func (User) TableName() string {
 	return "users"
 }
 
-// CreateUserInput defines expected fields for creating a user.
 type CreateUserInput struct {
 	Username string   `json:"username" binding:"required,min=3,max=50"`
 	Email    string   `json:"email" binding:"required,email"`
 	Password string   `json:"password" binding:"required,min=6"`
-	Role     UserRole `json:"role,omitempty"` // Optional, defaults to "user"
+	Role     UserRole `json:"role,omitempty"`
 }
 
-// ToDTO converts the User model into a UserDTO for responses.
+type UpdateUserInput struct {
+	Username *string   `json:"username,omitempty" binding:"omitempty,min=3,max=50"`
+	Email    *string   `json:"email,omitempty" binding:"omitempty,email"`
+	Password *string   `json:"password,omitempty" binding:"omitempty,min=6"`
+	Role     *UserRole `json:"role,omitempty"`
+}
+
 func (u *User) ToDTO() *UserDTO {
 	return &UserDTO{
 		ID:        u.ID,
@@ -64,7 +65,6 @@ func (u *User) ToDTO() *UserDTO {
 	}
 }
 
-// FromCreateInput maps CreateUserInput to the User model.
 func UserFromCreateInput(input *CreateUserInput) *User {
 	timeNow := time.Now()
 	role := input.Role
@@ -82,7 +82,6 @@ func UserFromCreateInput(input *CreateUserInput) *User {
 	}
 }
 
-// Role-based permission methods
 func (u *User) IsAdmin() bool {
 	return u.Role == RoleAdmin
 }
