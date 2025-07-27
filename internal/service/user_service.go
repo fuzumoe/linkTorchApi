@@ -9,7 +9,6 @@ import (
 	"github.com/fuzumoe/linkTorch-api/internal/repository"
 )
 
-// UserService defines business operations around users.
 type UserService interface {
 	Register(input *model.CreateUserInput) (*model.UserDTO, error)
 	Update(id uint, input *model.UpdateUserInput) (*model.UserDTO, error)
@@ -23,17 +22,16 @@ type userService struct {
 	repo repository.UserRepository
 }
 
-// NewUserService constructs a UserService.
 func NewUserService(repo repository.UserRepository) UserService {
 	return &userService{repo: repo}
 }
 
 func (s *userService) Register(input *model.CreateUserInput) (*model.UserDTO, error) {
-	// Check for existing email.
+
 	if existing, _ := s.repo.FindByEmail(input.Email); existing != nil {
 		return nil, errors.New("email already in use")
 	}
-	// Hash password
+
 	hash, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, err

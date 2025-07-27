@@ -5,7 +5,6 @@ import (
 	"github.com/fuzumoe/linkTorch-api/internal/repository"
 )
 
-// LinkService handles link persistence.
 type LinkService interface {
 	Add(link *model.Link) error
 	List(urlID uint, p repository.Pagination) ([]*model.LinkDTO, error)
@@ -18,7 +17,6 @@ type linkService struct {
 	repo repository.LinkRepository
 }
 
-// NewLinkService constructs a LinkService.
 func NewLinkService(repo repository.LinkRepository) LinkService {
 	return &linkService{repo: repo}
 }
@@ -29,19 +27,16 @@ func (s *linkService) ListByURL(urlID uint, p repository.Pagination) (*model.Pag
 		return nil, err
 	}
 
-	// Get total count for pagination metadata
 	totalCount, err := s.repo.CountByURL(urlID)
 	if err != nil {
 		return nil, err
 	}
 
-	// Calculate total pages
 	totalPages := totalCount / p.PageSize
 	if totalCount%p.PageSize > 0 {
 		totalPages++
 	}
 
-	// Convert models to DTOs
 	dtos := make([]model.LinkDTO, len(links))
 	for i, link := range links {
 		dtos[i] = mapLinkToDTO(&link)
