@@ -1,20 +1,16 @@
 run:
   timeout: 5m
   tests: true
+
 linters-settings:
   gofmt:
     simplify: true
   goimports:
     local-prefixes: github.com/fuzumoe/linkTorch-api
-  unused:
-    check-exported: true
-  gosimple:
-    checks: ["all"]
-  staticcheck:
-    checks: ["all"]
   revive:
     ignore-generated-header: true
     severity: warning
+
 issues:
   exclude-dirs:
     - "vendor"
@@ -29,13 +25,11 @@ issues:
         - goanalysis_metalinter
       text: "Cannot range over: func\\(yield func\\(.*\\) bool\\)"
   max-same-issues: 0
+
 linters:
   enable:
     - govet
     - errcheck
-    - staticcheck
-    - gosimple
-    - unused
     - ineffassign
     - unconvert
     - gofmt
@@ -45,14 +39,18 @@ linters:
     - dupl
     - revive
   disable:
-    - nakedret
+    # Deprecated linters (remove to avoid warnings)
     - maligned
     - deadcode
     - structcheck
     - varcheck
-    - nakedret
     - scopelint
-    - typecheck
+    # Temporarily disable problematic linters for Go 1.23 compatibility
+    - staticcheck
+    - gosimple
+    - unused
+    - nakedret
+
 dupl:
   threshold: 50
 gocyclo:

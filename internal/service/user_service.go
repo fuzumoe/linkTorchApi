@@ -14,7 +14,7 @@ type UserService interface {
 	Register(input *model.CreateUserInput) (*model.UserDTO, error)
 	Authenticate(email, password string) (*model.UserDTO, error)
 	Get(id uint) (*model.UserDTO, error)
-	List(p repository.Pagination) ([]*model.UserDTO, error)
+	Search(searchTerm, searchField, sortDirection string, p repository.Pagination) ([]*model.UserDTO, error)
 	Delete(id uint) error
 }
 
@@ -68,8 +68,8 @@ func (s *userService) Get(id uint) (*model.UserDTO, error) {
 	return u.ToDTO(), nil
 }
 
-func (s *userService) List(p repository.Pagination) ([]*model.UserDTO, error) {
-	users, err := s.repo.ListAll(p)
+func (s *userService) Search(searchTerm, searchField, sortDirection string, p repository.Pagination) ([]*model.UserDTO, error) {
+	users, err := s.repo.Search(searchTerm, searchField, sortDirection, p)
 	if err != nil {
 		return nil, err
 	}

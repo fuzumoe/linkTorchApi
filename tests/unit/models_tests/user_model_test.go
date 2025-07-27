@@ -54,4 +54,132 @@ func TestUser(t *testing.T) {
 
 		assert.Equal(t, expected, user.TableName(), "TableName should return 'users'")
 	})
+
+	t.Run("Is Admin", func(t *testing.T) {
+		expected := true
+		user := model.User{
+			Role: "admin",
+		}
+
+		assert.Equal(t, expected, user.IsAdmin())
+
+		expected = false
+		user = model.User{}
+
+		assert.Equal(t, expected, user.IsAdmin())
+
+	})
+
+	t.Run("Is Crawler", func(t *testing.T) {
+		expected := true
+		user := model.User{
+			Role: "crawler",
+		}
+
+		assert.Equal(t, expected, user.IsCrawler())
+
+		expected = true
+		user = model.User{
+			Role: "admin",
+		}
+
+		assert.Equal(t, expected, user.IsCrawler())
+
+		expected = false
+		user = model.User{}
+
+		assert.Equal(t, expected, user.IsCrawler())
+
+	})
+
+	t.Run("Role Worker", func(t *testing.T) {
+		expected := true
+		user := model.User{
+			Role: "worker",
+		}
+
+		assert.Equal(t, expected, user.IsWorker())
+
+		expected = true
+		user = model.User{
+			Role: "crawler",
+		}
+
+		assert.Equal(t, expected, user.IsWorker())
+		expected = true
+		user = model.User{
+			Role: "admin",
+		}
+
+		assert.Equal(t, expected, user.IsWorker())
+
+		expected = false
+		user = model.User{}
+
+		assert.Equal(t, expected, user.IsWorker())
+
+	})
+
+	t.Run("Can Manage Users", func(t *testing.T) {
+		expected := true
+		user := model.User{
+			Role: "admin",
+		}
+
+		assert.Equal(t, expected, user.CanManageUsers())
+
+		expected = false
+		user = model.User{}
+
+		assert.Equal(t, expected, user.CanManageUsers())
+
+		expected = false
+		user = model.User{}
+
+		assert.Equal(t, expected, user.CanManageUsers())
+
+		expected = false
+		user = model.User{
+			Role: "crawler",
+		}
+
+		assert.Equal(t, expected, user.CanManageUsers())
+
+		expected = false
+		user = model.User{
+			Role: "worker",
+		}
+
+		assert.Equal(t, expected, user.CanManageUsers())
+
+	})
+
+	t.Run("Can Start Crawls", func(t *testing.T) {
+		expected := true
+		user := model.User{
+			Role: "admin",
+		}
+
+		assert.Equal(t, expected, user.CanStartCrawls())
+
+		expected = true
+		user = model.User{
+			Role: "crawler",
+		}
+
+		assert.Equal(t, expected, user.CanStartCrawls())
+
+		expected = false
+		user = model.User{
+			Role: "worker",
+		}
+
+		assert.Equal(t, expected, user.CanStartCrawls())
+
+		expected = false
+		user = model.User{}
+
+		assert.Equal(t, expected, user.CanStartCrawls())
+
+	})
 }

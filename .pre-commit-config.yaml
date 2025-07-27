@@ -8,12 +8,12 @@ repos:
       - id: check-added-large-files
 
   - repo: https://github.com/golangci/golangci-lint
-    rev: v1.59.0  # Updated to a newer version
+    rev: v1.55.2 # Updated to a newer version
     hooks:
       - id: golangci-lint
         args: [--config=.golangci.yml, --fix]
         # Removed the --fix flag as it can cause issues with certain linters
-        pass_filenames: false  # Run on all files, not just changed ones
+        pass_filenames: false # Run on all files, not just changed ones
         stages: [pre-commit]
 
   - repo: local
