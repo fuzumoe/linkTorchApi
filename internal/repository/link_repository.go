@@ -8,7 +8,6 @@ import (
 	"github.com/fuzumoe/linkTorch-api/internal/model"
 )
 
-// LinkRepository defines DB ops for Link entities.
 type LinkRepository interface {
 	Create(link *model.Link) error
 	ListByURL(urlID uint, p Pagination) ([]model.Link, error)

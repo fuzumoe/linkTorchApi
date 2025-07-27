@@ -10,7 +10,6 @@ import (
 	"github.com/fuzumoe/linkTorch-api/internal/model"
 )
 
-// URLRepository defines DB ops around URL entities.
 type URLRepository interface {
 	Create(u *model.URL) error
 	FindByID(id uint) (*model.URL, error)
@@ -95,7 +94,6 @@ func (r *urlRepo) SaveResults(id uint, res *model.AnalysisResult, links []model.
 	})
 }
 
-// Already in your code - looks good
 func (r *urlRepo) Results(id uint) (*model.URL, error) {
 	var u model.URL
 	err := r.db.
@@ -105,9 +103,8 @@ func (r *urlRepo) Results(id uint) (*model.URL, error) {
 	return &u, err
 }
 
-// ResultsWithDetails retrieves URL with analysis results and links in a single query
 func (r *urlRepo) ResultsWithDetails(id uint) (*model.URL, []*model.AnalysisResult, []*model.Link, error) {
-	// Use a single complex query to get everything at once
+
 	var resultJSON string
 	query := `SELECT
   JSON_OBJECT(
@@ -163,13 +160,11 @@ func (r *urlRepo) ResultsWithDetails(id uint) (*model.URL, []*model.AnalysisResu
   ) AS result_document
 FROM urls u
 WHERE u.id = ?`
-	// Execute the query with the URL ID
 	err := r.db.Raw(query, id).Scan(&resultJSON).Error
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to execute complex query: %w", err)
 	}
 
-	// Parse the JSON result into our structs
 	var result struct {
 		URL             model.URL               `json:"url"`
 		AnalysisResults []*model.AnalysisResult `json:"analysis_results"`

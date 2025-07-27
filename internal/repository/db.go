@@ -8,9 +8,7 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-// NewDB initializes a GORM DB connection using the provided DSN.
 func NewDB(dsn string) (*gorm.DB, error) {
-	// Configure GORM logger to warn only
 	cfg := &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Warn),
 	}
@@ -24,7 +22,7 @@ func NewDB(dsn string) (*gorm.DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get sql.DB: %w", err)
 	}
-	// Optional: configure connection pool.
+
 	sqlDB.SetMaxIdleConns(10)
 	sqlDB.SetMaxOpenConns(100)
 	sqlDB.SetConnMaxLifetime(0)
