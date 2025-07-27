@@ -17,9 +17,12 @@ type URLService interface {
 	Update(id uint, input *model.UpdateURLInput) error
 	Delete(id uint) error
 	Start(id uint) error
+	StartWithPriority(id uint, priority int) error
 	Stop(id uint) error
 	Results(id uint) (*model.URLDTO, error)
 	ResultsWithDetails(id uint) (*model.URL, []*model.AnalysisResult, []*model.Link, error)
+	GetCrawlResults() <-chan crawler.CrawlResult
+	AdjustCrawlerWorkers(action string, count int) error
 }
 
 type urlService struct {
@@ -154,4 +157,42 @@ func (s *urlService) List(userID uint, p repository.Pagination) (*model.Paginate
 
 func (s *urlService) Delete(id uint) error {
 	return s.repo.Delete(id)
+}
+
+// StartWithPriority starts crawling a URL with the specified priority
+func (s *urlService) StartWithPriority(id uint, priority int) error {
+	// First check if the URL exists
+	_, err := s.repo.FindByID(id)
+	if err != nil {
+		return fmt.Errorf("cannot start crawling: %w", err)
+	}
+
+	if err := s.repo.UpdateStatus(id, model.StatusQueued); err != nil {
+		return err
+	}
+	s.crawlers.EnqueueWithPriority(id, priority)
+	return nil
+}
+
+// GetCrawlResults returns a channel that emits real-time crawl results
+func (s *urlService) GetCrawlResults() <-chan crawler.CrawlResult {
+	return s.crawlers.GetResults()
+}
+
+// AdjustCrawlerWorkers dynamically adds or removes workers from the crawler pool
+func (s *urlService) AdjustCrawlerWorkers(action string, count int) error {
+	if count <= 0 {
+		return fmt.Errorf("worker count must be positive")
+	}
+
+	if action != "add" && action != "remove" {
+		return fmt.Errorf("action must be 'add' or 'remove'")
+	}
+
+	s.crawlers.AdjustWorkers(crawler.ControlCommand{
+		Action: action,
+		Count:  count,
+	})
+
+	return nil
 }

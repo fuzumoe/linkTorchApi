@@ -81,8 +81,9 @@ func TestWorkerIntegration(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			// Updated: Pass a crawl timeout (1 second) to the NewWorker constructor.
-			worker := crawler.NewWorker(1, ctx, urlRepo, analyzer, 1*time.Second)
+			// Updated: Pass a crawl timeout and results channel to the NewWorker constructor.
+			resultsChan := make(chan crawler.CrawlResult, 1)
+			worker := crawler.NewWorker(1, ctx, urlRepo, analyzer, 1*time.Second, resultsChan)
 
 			tasks := make(chan uint, 1)
 			workerDone := make(chan struct{})
@@ -164,8 +165,9 @@ func TestWorkerIntegration(t *testing.T) {
 
 			ctx, cancel := context.WithCancel(context.Background())
 
-			// Updated: Pass crawlTimeout parameter.
-			worker := crawler.NewWorker(2, ctx, urlRepo, slowAnalyzer, 1*time.Second)
+			// Updated: Pass crawlTimeout and results channel parameters.
+			resultsChan := make(chan crawler.CrawlResult, 1)
+			worker := crawler.NewWorker(2, ctx, urlRepo, slowAnalyzer, 1*time.Second, resultsChan)
 			tasks := make(chan uint, 1)
 			workerDone := make(chan struct{})
 

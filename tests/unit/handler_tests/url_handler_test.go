@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/fuzumoe/urlinsight-backend/internal/crawler"
 	"github.com/fuzumoe/urlinsight-backend/internal/handler"
 	"github.com/fuzumoe/urlinsight-backend/internal/model"
 	"github.com/fuzumoe/urlinsight-backend/internal/repository"
@@ -61,7 +62,19 @@ func (s *dummyURLService) Start(id uint) error {
 	return nil
 }
 
+func (s *dummyURLService) StartWithPriority(id uint, priority int) error {
+	return nil
+}
+
 func (s *dummyURLService) Stop(id uint) error {
+	return nil
+}
+
+func (s *dummyURLService) GetCrawlResults() <-chan crawler.CrawlResult {
+	return make(chan crawler.CrawlResult)
+}
+
+func (s *dummyURLService) AdjustCrawlerWorkers(action string, count int) error {
 	return nil
 }
 

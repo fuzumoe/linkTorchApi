@@ -38,9 +38,12 @@ func contains(s string, values []string) bool {
 
 // dummyCrawlerPool is a testing implementation of crawler.Pool.
 type dummyCrawlerPool struct {
-	startFunc    func(ctx context.Context)
-	EnqueueFunc  func(id uint)
-	ShutdownFunc func()
+	startFunc           func(ctx context.Context)
+	EnqueueFunc         func(id uint)
+	EnqueuePriorityFunc func(id uint, priority int)
+	ShutdownFunc        func()
+	GetResultsFunc      func() <-chan crawler.CrawlResult
+	AdjustWorkersFunc   func(cmd crawler.ControlCommand)
 }
 
 func (d *dummyCrawlerPool) Start(ctx context.Context) {
@@ -55,9 +58,28 @@ func (d *dummyCrawlerPool) Enqueue(id uint) {
 	}
 }
 
+func (d *dummyCrawlerPool) EnqueueWithPriority(id uint, priority int) {
+	if d.EnqueuePriorityFunc != nil {
+		d.EnqueuePriorityFunc(id, priority)
+	}
+}
+
 func (d *dummyCrawlerPool) Shutdown() {
 	if d.ShutdownFunc != nil {
 		d.ShutdownFunc()
+	}
+}
+
+func (d *dummyCrawlerPool) GetResults() <-chan crawler.CrawlResult {
+	if d.GetResultsFunc != nil {
+		return d.GetResultsFunc()
+	}
+	return make(chan crawler.CrawlResult)
+}
+
+func (d *dummyCrawlerPool) AdjustWorkers(cmd crawler.ControlCommand) {
+	if d.AdjustWorkersFunc != nil {
+		d.AdjustWorkersFunc(cmd)
 	}
 }
 

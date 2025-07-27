@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/fuzumoe/urlinsight-backend/internal/crawler"
 	"github.com/fuzumoe/urlinsight-backend/internal/model"
 	"github.com/fuzumoe/urlinsight-backend/internal/repository"
 	"github.com/fuzumoe/urlinsight-backend/internal/service"
@@ -19,9 +20,14 @@ import (
 // DummyCrawlerPool updated to match new interface
 type DummyCrawlerPool struct{}
 
-func (d *DummyCrawlerPool) Start(ctx context.Context) {}
-func (d *DummyCrawlerPool) Enqueue(id uint)           {}
-func (d *DummyCrawlerPool) Shutdown()                 {}
+func (d *DummyCrawlerPool) Start(ctx context.Context)                 {}
+func (d *DummyCrawlerPool) Enqueue(id uint)                           {}
+func (d *DummyCrawlerPool) EnqueueWithPriority(id uint, priority int) {}
+func (d *DummyCrawlerPool) Shutdown()                                 {}
+func (d *DummyCrawlerPool) GetResults() <-chan crawler.CrawlResult {
+	return make(chan crawler.CrawlResult)
+}
+func (d *DummyCrawlerPool) AdjustWorkers(cmd crawler.ControlCommand) {}
 
 // MockCrawlerPool updated to match new interface
 type MockCrawlerPool struct {
@@ -34,8 +40,18 @@ func (m *MockCrawlerPool) Start(ctx context.Context) {
 func (m *MockCrawlerPool) Enqueue(id uint) {
 	m.Called(id)
 }
+func (m *MockCrawlerPool) EnqueueWithPriority(id uint, priority int) {
+	m.Called(id, priority)
+}
 func (m *MockCrawlerPool) Shutdown() {
 	m.Called()
+}
+func (m *MockCrawlerPool) GetResults() <-chan crawler.CrawlResult {
+	args := m.Called()
+	return args.Get(0).(<-chan crawler.CrawlResult)
+}
+func (m *MockCrawlerPool) AdjustWorkers(cmd crawler.ControlCommand) {
+	m.Called(cmd)
 }
 
 // MockURLRepo mocks implementation of repository.URLRepository.

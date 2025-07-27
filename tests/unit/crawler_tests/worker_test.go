@@ -124,7 +124,8 @@ func TestWorkerSuite(t *testing.T) {
 		require.NoError(t, repo.UpdateStatus(1, model.StatusQueued))
 		anal := &dummyAnalyzer{shouldError: false}
 
-		worker := crawler.NewWorker(1, ctx, repo, anal, 1*time.Second)
+		resultsChan := make(chan crawler.CrawlResult, 1)
+		worker := crawler.NewWorker(1, ctx, repo, anal, 1*time.Second, resultsChan)
 		tasks := make(chan uint, 1)
 		tasks <- 1
 		close(tasks)
@@ -147,7 +148,8 @@ func TestWorkerSuite(t *testing.T) {
 		require.NoError(t, repo.UpdateStatus(2, model.StatusQueued))
 		anal := &dummyAnalyzer{shouldError: false}
 
-		worker := crawler.NewWorker(2, ctx, repo, anal, 1*time.Second)
+		resultsChan := make(chan crawler.CrawlResult, 1)
+		worker := crawler.NewWorker(2, ctx, repo, anal, 1*time.Second, resultsChan)
 		tasks := make(chan uint, 1)
 		tasks <- 2
 
@@ -174,7 +176,8 @@ func TestWorkerSuite(t *testing.T) {
 		require.NoError(t, repo.UpdateStatus(3, model.StatusQueued))
 		anal := &dummyAnalyzer{shouldError: true}
 
-		worker := crawler.NewWorker(3, ctx, repo, anal, 1*time.Second)
+		resultsChan := make(chan crawler.CrawlResult, 1)
+		worker := crawler.NewWorker(3, ctx, repo, anal, 1*time.Second, resultsChan)
 		tasks := make(chan uint, 1)
 		tasks <- 3
 		close(tasks)
@@ -196,7 +199,9 @@ func TestWorkerSuite(t *testing.T) {
 
 		repo := newTestRepo()
 		anal := &dummyAnalyzer{shouldError: false}
-		worker := crawler.NewWorker(1, ctx, repo, anal, 1*time.Second)
+
+		resultsChan := make(chan crawler.CrawlResult, 1)
+		worker := crawler.NewWorker(1, ctx, repo, anal, 1*time.Second, resultsChan)
 
 		tasks := make(chan uint, 1)
 		done := make(chan struct{})
@@ -236,7 +241,8 @@ func TestWorkerSuite(t *testing.T) {
 		require.NoError(t, repo.UpdateStatus(44, model.StatusQueued))
 		cancelAnal := &cancelAnalyzer{}
 
-		worker := crawler.NewWorker(1, ctx, repo, cancelAnal, 1*time.Second)
+		resultsChan := make(chan crawler.CrawlResult, 1)
+		worker := crawler.NewWorker(1, ctx, repo, cancelAnal, 1*time.Second, resultsChan)
 		tasks := make(chan uint, 1)
 		done := make(chan struct{})
 		go func() {

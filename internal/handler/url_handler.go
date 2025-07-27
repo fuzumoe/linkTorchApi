@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -168,6 +169,7 @@ func (h *URLHandler) Delete(c *gin.Context) {
 // @Tags    urls
 // @Produce json
 // @Param   id path int true "URL ID"
+// @Param   priority query int false "Priority (1-10, default 5)" default(5)
 // @Success 202 {object} map[string]string "queued"
 // @Security JWTAuth
 // @Security BasicAuth
@@ -177,11 +179,28 @@ func (h *URLHandler) Start(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if err := h.urlService.Start(id); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
+
+	// Check if priority is specified
+	priorityStr := c.DefaultQuery("priority", "5")
+	priority, err := strconv.Atoi(priorityStr)
+	if err != nil || priority < 1 || priority > 10 {
+		priority = 5 // Default priority
 	}
-	c.JSON(http.StatusAccepted, gin.H{"status": model.StatusQueued})
+
+	// Use StartWithPriority if priority is specified, otherwise use Start
+	if priorityStr != "5" {
+		if err := h.urlService.StartWithPriority(id, priority); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusAccepted, gin.H{"status": model.StatusQueued, "priority": priority})
+	} else {
+		if err := h.urlService.Start(id); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusAccepted, gin.H{"status": model.StatusQueued})
+	}
 }
 
 // @Summary Stop crawl
@@ -242,6 +261,61 @@ func (h *URLHandler) Results(c *gin.Context) {
 	c.JSON(http.StatusOK, dto)
 }
 
+// @Summary Adjust crawler workers
+// @Tags    crawler
+// @Produce json
+// @Param   action query string true "Action (add or remove)" Enums(add, remove)
+// @Param   count query int true "Number of workers to add/remove"
+// @Success 200 {object} map[string]string "adjusted"
+// @Failure 400 {object} map[string]string "bad request"
+// @Security JWTAuth
+// @Security BasicAuth
+// @Router  /crawler/workers [patch]
+func (h *URLHandler) AdjustWorkers(c *gin.Context) {
+	action := c.Query("action")
+	countStr := c.Query("count")
+
+	if action != "add" && action != "remove" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "action must be 'add' or 'remove'"})
+		return
+	}
+
+	count, err := strconv.Atoi(countStr)
+	if err != nil || count <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "count must be a positive integer"})
+		return
+	}
+
+	if err := h.urlService.AdjustCrawlerWorkers(action, count); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("Successfully %s %d workers", action+"ed", count)})
+}
+
+// @Summary Get recent crawl results
+// @Tags    crawler
+// @Produce json
+// @Success 200 {array} crawler.CrawlResult "array of recent crawl results"
+// @Security JWTAuth
+// @Security BasicAuth
+// @Router  /crawler/results [get]
+func (h *URLHandler) GetCrawlResults(c *gin.Context) {
+	// In a real implementation, this would likely be a WebSocket or Server-Sent Events endpoint
+	// For demonstration purposes, we'll return the last few results from an in-memory buffer
+
+	// This is a stub implementation - in a real app, you would:
+	// 1. Maintain a buffer of recent results
+	// 2. Use WebSockets to stream results in real-time
+	// 3. Allow filtering by URL ID
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "This endpoint would stream real-time crawl results. In a production implementation, consider using WebSockets or Server-Sent Events.",
+		"note":    "The enhanced crawler now supports real-time result streaming via channels. This HTTP endpoint is just a placeholder.",
+	})
+}
+
 func (h *URLHandler) RegisterProtectedRoutes(rg *gin.RouterGroup) {
 	rg.POST("/urls", h.Create)
 	rg.GET("/urls", h.List)
@@ -251,4 +325,8 @@ func (h *URLHandler) RegisterProtectedRoutes(rg *gin.RouterGroup) {
 	rg.PATCH("/urls/:id/start", h.Start)
 	rg.PATCH("/urls/:id/stop", h.Stop)
 	rg.GET("/urls/:id/results", h.Results)
+
+	// Crawler management endpoints
+	rg.PATCH("/crawler/workers", h.AdjustWorkers)
+	rg.GET("/crawler/results", h.GetCrawlResults)
 }

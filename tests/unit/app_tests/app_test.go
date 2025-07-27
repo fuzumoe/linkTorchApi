@@ -9,6 +9,7 @@ import (
 	"os"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/agiledragon/gomonkey/v2"
 	"github.com/gin-gonic/gin"
@@ -35,9 +36,14 @@ type MockCrawlerPool struct{}
 func (m *MockCrawlerPool) Start(ctx context.Context) {
 	// Do nothing in tests - don't block
 }
-func (m *MockCrawlerPool) Shutdown()       {}
-func (m *MockCrawlerPool) Submit(id uint)  {} // backward compatibility
-func (m *MockCrawlerPool) Enqueue(id uint) {}
+func (m *MockCrawlerPool) Shutdown()                                 {}
+func (m *MockCrawlerPool) Submit(id uint)                            {} // backward compatibility
+func (m *MockCrawlerPool) Enqueue(id uint)                           {}
+func (m *MockCrawlerPool) EnqueueWithPriority(id uint, priority int) {}
+func (m *MockCrawlerPool) GetResults() <-chan crawler.CrawlResult {
+	return make(chan crawler.CrawlResult)
+}
+func (m *MockCrawlerPool) AdjustWorkers(cmd crawler.ControlCommand) {}
 
 // setupHooks applies all patches so app.Run never starts a real server.
 func setupHooks(t *testing.T) {
@@ -85,7 +91,7 @@ func setupHooks(t *testing.T) {
 
 	// Patch crawler.New → our MockCrawlerPool
 	p5 := gomonkey.ApplyFunc(crawler.New,
-		func(_ repository.URLRepository, _ interface{}, _, _ int) crawler.Pool {
+		func(_ repository.URLRepository, _ interface{}, _, _ int, _ time.Duration) crawler.Pool {
 			return &MockCrawlerPool{}
 		})
 	t.Cleanup(p5.Reset)
