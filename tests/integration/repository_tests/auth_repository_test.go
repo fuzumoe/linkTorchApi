@@ -8,9 +8,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
-	"github.com/fuzumoe/urlinsight-backend/internal/model"
-	"github.com/fuzumoe/urlinsight-backend/internal/repository"
-	"github.com/fuzumoe/urlinsight-backend/tests/utils"
+	"github.com/fuzumoe/linkTorch-api/internal/model"
+	"github.com/fuzumoe/linkTorch-api/internal/repository"
+	"github.com/fuzumoe/linkTorch-api/tests/utils"
 )
 
 // Helper function to count tokens in the database.

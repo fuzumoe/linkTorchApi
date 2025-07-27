@@ -13,9 +13,9 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/fuzumoe/urlinsight-backend/internal/middleware"
-	"github.com/fuzumoe/urlinsight-backend/internal/model"
-	"github.com/fuzumoe/urlinsight-backend/internal/service"
+	"github.com/fuzumoe/linkTorch-api/internal/middleware"
+	"github.com/fuzumoe/linkTorch-api/internal/model"
+	"github.com/fuzumoe/linkTorch-api/internal/service"
 )
 
 // MockAuthService implements service.AuthService for testing.

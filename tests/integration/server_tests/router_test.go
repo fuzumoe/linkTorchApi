@@ -10,10 +10,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/fuzumoe/urlinsight-backend/internal/handler"
-	"github.com/fuzumoe/urlinsight-backend/internal/server"
-	"github.com/fuzumoe/urlinsight-backend/internal/service"
-	"github.com/fuzumoe/urlinsight-backend/tests/utils"
+	"github.com/fuzumoe/linkTorch-api/internal/handler"
+	"github.com/fuzumoe/linkTorch-api/internal/server"
+	"github.com/fuzumoe/linkTorch-api/internal/service"
+	"github.com/fuzumoe/linkTorch-api/tests/utils"
 )
 
 func TestRouterIntegration(t *testing.T) {

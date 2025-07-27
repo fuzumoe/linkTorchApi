@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/url"
 
-	"github.com/fuzumoe/urlinsight-backend/internal/model"
+	"github.com/fuzumoe/linkTorch-api/internal/model"
 )
 
 // Analyzer defines the interface for analyzing URLs.

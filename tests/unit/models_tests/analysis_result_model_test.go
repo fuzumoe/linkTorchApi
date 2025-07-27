@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/fuzumoe/urlinsight-backend/internal/model"
+	"github.com/fuzumoe/linkTorch-api/internal/model"
 )
 
 func TestAnalysisResult(t *testing.T) {

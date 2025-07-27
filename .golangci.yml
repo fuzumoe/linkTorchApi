@@ -5,7 +5,7 @@ linters-settings:
   gofmt:
     simplify: true
   goimports:
-    local-prefixes: github.com/fuzumoe/urlinsight-backend
+    local-prefixes: github.com/fuzumoe/linkTorch-api
   unused:
     check-exported: true
   gosimple:

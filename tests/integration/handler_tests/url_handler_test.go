@@ -12,10 +12,10 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/fuzumoe/urlinsight-backend/internal/crawler"
-	"github.com/fuzumoe/urlinsight-backend/internal/handler"
-	"github.com/fuzumoe/urlinsight-backend/internal/model"
-	"github.com/fuzumoe/urlinsight-backend/internal/repository"
+	"github.com/fuzumoe/linkTorch-api/internal/crawler"
+	"github.com/fuzumoe/linkTorch-api/internal/handler"
+	"github.com/fuzumoe/linkTorch-api/internal/model"
+	"github.com/fuzumoe/linkTorch-api/internal/repository"
 )
 
 // MockURLService implements the service.URLService interface for testing
@@ -252,7 +252,7 @@ func TestUpdate(t *testing.T) {
 	var response map[string]interface{}
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
-	assert.Equal(t, "success", response["status"])
+	assert.Equal(t, "updated", response["message"])
 
 	// Verify mock was called
 	urlService.AssertExpectations(t)
@@ -277,7 +277,7 @@ func TestDelete(t *testing.T) {
 	var response map[string]interface{}
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
-	assert.Equal(t, "success", response["status"])
+	assert.Equal(t, "deleted", response["message"])
 
 	// Verify mock was called
 	urlService.AssertExpectations(t)
@@ -290,19 +290,19 @@ func TestStart(t *testing.T) {
 	urlService.On("Start", uint(1)).Return(nil)
 
 	// Create test request
-	req, _ := http.NewRequest(http.MethodPost, "/api/urls/1/start", nil)
+	req, _ := http.NewRequest(http.MethodPatch, "/api/urls/1/start", nil)
 	w := httptest.NewRecorder()
 
 	// Perform request
 	r.ServeHTTP(w, req)
 
 	// Assert response
-	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, http.StatusAccepted, w.Code)
 
 	var response map[string]interface{}
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
-	assert.Equal(t, "success", response["status"])
+	assert.Equal(t, model.StatusQueued, response["status"])
 
 	// Verify mock was called
 	urlService.AssertExpectations(t)
@@ -315,19 +315,19 @@ func TestStop(t *testing.T) {
 	urlService.On("Stop", uint(1)).Return(nil)
 
 	// Create test request
-	req, _ := http.NewRequest(http.MethodPost, "/api/urls/1/stop", nil)
+	req, _ := http.NewRequest(http.MethodPatch, "/api/urls/1/stop", nil)
 	w := httptest.NewRecorder()
 
 	// Perform request
 	r.ServeHTTP(w, req)
 
 	// Assert response
-	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, http.StatusAccepted, w.Code)
 
 	var response map[string]interface{}
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
-	assert.Equal(t, "success", response["status"])
+	assert.Equal(t, model.StatusStopped, response["status"])
 
 	// Verify mock was called
 	urlService.AssertExpectations(t)
@@ -336,13 +336,31 @@ func TestStop(t *testing.T) {
 func TestResults(t *testing.T) {
 	r, urlService := setupHandler(t)
 
-	// Mock service behavior
-	urlService.On("Results", uint(1)).Return(&model.URLDTO{
-		ID:          1,
-		OriginalURL: "http://example.com",
-		Status:      model.StatusDone,
-		UserID:      1,
-	}, nil)
+	// Mock service behavior - the handler calls ResultsWithDetails, not Results
+	urlService.On("ResultsWithDetails", uint(1)).Return(
+		&model.URL{
+			ID:          1,
+			OriginalURL: "http://example.com",
+			Status:      model.StatusDone,
+			UserID:      1,
+		},
+		[]*model.AnalysisResult{
+			{
+				ID:    1,
+				URLID: 1,
+				Title: "Example Site",
+			},
+		},
+		[]*model.Link{
+			{
+				ID:         1,
+				URLID:      1,
+				Href:       "http://example.com/link1",
+				IsExternal: false,
+			},
+		},
+		nil,
+	)
 
 	// Create test request
 	req, _ := http.NewRequest(http.MethodGet, "/api/urls/1/results", nil)
@@ -357,9 +375,11 @@ func TestResults(t *testing.T) {
 	var response map[string]interface{}
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
-	assert.Equal(t, float64(1), response["id"])
-	assert.Equal(t, "http://example.com", response["original_url"])
-	assert.Equal(t, model.StatusDone, response["status"])
+
+	// Check the structure matches URLResultsDTO
+	assert.NotNil(t, response["url"])
+	assert.NotNil(t, response["analysis_results"])
+	assert.NotNil(t, response["links"])
 
 	// Verify mock was called
 	urlService.AssertExpectations(t)

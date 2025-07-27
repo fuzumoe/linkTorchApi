@@ -8,12 +8,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/fuzumoe/urlinsight-backend/internal/analyzer"
-	"github.com/fuzumoe/urlinsight-backend/internal/crawler"
-	"github.com/fuzumoe/urlinsight-backend/internal/model"
-	"github.com/fuzumoe/urlinsight-backend/internal/repository"
-	"github.com/fuzumoe/urlinsight-backend/internal/service"
-	"github.com/fuzumoe/urlinsight-backend/tests/utils"
+	"github.com/fuzumoe/linkTorch-api/internal/analyzer"
+	"github.com/fuzumoe/linkTorch-api/internal/crawler"
+	"github.com/fuzumoe/linkTorch-api/internal/model"
+	"github.com/fuzumoe/linkTorch-api/internal/repository"
+	"github.com/fuzumoe/linkTorch-api/internal/service"
+	"github.com/fuzumoe/linkTorch-api/tests/utils"
 )
 
 func TestURLService_Integration(t *testing.T) {

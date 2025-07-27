@@ -9,9 +9,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/fuzumoe/urlinsight-backend/internal/model"
-	"github.com/fuzumoe/urlinsight-backend/internal/repository"
-	"github.com/fuzumoe/urlinsight-backend/internal/service"
+	"github.com/fuzumoe/linkTorch-api/internal/model"
+	"github.com/fuzumoe/linkTorch-api/internal/repository"
+	"github.com/fuzumoe/linkTorch-api/internal/service"
 )
 
 // MockUserRepo is a mock implementation of UserRepository.

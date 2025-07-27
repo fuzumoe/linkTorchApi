@@ -7,7 +7,7 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/fuzumoe/urlinsight-backend/internal/model"
+	"github.com/fuzumoe/linkTorch-api/internal/model"
 )
 
 // URLRepository defines DB ops around URL entities.

@@ -17,10 +17,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
-	"github.com/fuzumoe/urlinsight-backend/configs"
-	"github.com/fuzumoe/urlinsight-backend/internal/app"
-	"github.com/fuzumoe/urlinsight-backend/internal/crawler"
-	"github.com/fuzumoe/urlinsight-backend/internal/repository"
+	"github.com/fuzumoe/linkTorch-api/configs"
+	"github.com/fuzumoe/linkTorch-api/internal/app"
+	"github.com/fuzumoe/linkTorch-api/internal/crawler"
+	"github.com/fuzumoe/linkTorch-api/internal/repository"
 )
 
 // save original hook functions

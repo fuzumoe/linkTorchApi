@@ -10,7 +10,7 @@ import (
 	"github.com/PuerkitoBio/goquery"
 	"golang.org/x/net/html"
 
-	"github.com/fuzumoe/urlinsight-backend/internal/model"
+	"github.com/fuzumoe/linkTorch-api/internal/model"
 )
 
 // HTMLAnalyzer analyzes HTML documents for various metrics.

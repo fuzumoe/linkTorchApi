@@ -14,7 +14,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
-	"github.com/fuzumoe/urlinsight-backend/internal/model"
+	"github.com/fuzumoe/linkTorch-api/internal/model"
 )
 
 var (
@@ -36,7 +36,7 @@ func InitTestSuite() error {
 	// Get test database name.
 	testDBName = os.Getenv("TEST_DATABASE")
 	if testDBName == "" {
-		testDBName = "urlinsight_test"
+		testDBName = "linkTorch_test"
 	}
 
 	// Connect to MySQL without specifying a database.
@@ -63,7 +63,7 @@ func InitTestSuite() error {
 	}
 
 	// Grant permissions to the regular user for the test database.
-	regularUser := getEnvOrDefault("DB_USER", "urlinsight_user")
+	regularUser := getEnvOrDefault("DB_USER", "linkTorch_user")
 	if err := rootDB.Exec(fmt.Sprintf("GRANT ALL PRIVILEGES ON `%s`.* TO '%s'@'%%'", testDBName, regularUser)).Error; err != nil {
 		fmt.Printf("Warning: failed to grant permissions to %s: %v\n", regularUser, err)
 	}
@@ -123,7 +123,7 @@ func buildRootDSN() string {
 func buildTestDSN(dbName string) string {
 	host := getEnvOrDefault("DB_HOST", "localhost")
 	port := getEnvOrDefault("DB_PORT", "3309")
-	user := getEnvOrDefault("TEST_MYSQL_USER", getEnvOrDefault("DB_USER", "urlinsight_user"))
+	user := getEnvOrDefault("TEST_MYSQL_USER", getEnvOrDefault("DB_USER", "linkTorch_user"))
 	password := getEnvOrDefault("TEST_MYSQL_PASSWORD", getEnvOrDefault("DB_PASSWORD", "secret"))
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true", user, password, host, port, dbName)
 	fmt.Printf("Test DSN: %s\n", dsn)

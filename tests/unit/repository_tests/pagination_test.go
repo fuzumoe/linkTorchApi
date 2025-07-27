@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/fuzumoe/urlinsight-backend/internal/repository"
+	"github.com/fuzumoe/linkTorch-api/internal/repository"
 )
 
 func TestPaginationOffset(t *testing.T) {

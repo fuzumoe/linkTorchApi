@@ -9,7 +9,7 @@ import (
 
 	"github.com/temoto/robotstxt"
 
-	"github.com/fuzumoe/urlinsight-backend/internal/model"
+	"github.com/fuzumoe/linkTorch-api/internal/model"
 )
 
 // robots is a cache for robots.txt data to avoid repeated requests.

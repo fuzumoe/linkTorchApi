@@ -12,8 +12,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/fuzumoe/urlinsight-backend/internal/analyzer"
-	"github.com/fuzumoe/urlinsight-backend/internal/model"
+	"github.com/fuzumoe/linkTorch-api/internal/analyzer"
+	"github.com/fuzumoe/linkTorch-api/internal/model"
 )
 
 func TestLinkChecker_Integration(t *testing.T) {

@@ -17,7 +17,7 @@ RUN go mod download
 COPY . .
 
 # Explicitly fetch the missing module
-RUN go get github.com/fuzumoe/urlinsight-backend/docs
+RUN go get github.com/fuzumoe/linkTorch-api/docs
 
 
 # Build the backend binary

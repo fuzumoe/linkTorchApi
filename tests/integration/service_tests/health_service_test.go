@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fuzumoe/urlinsight-backend/internal/service"
-	"github.com/fuzumoe/urlinsight-backend/tests/utils"
+	"github.com/fuzumoe/linkTorch-api/internal/service"
+	"github.com/fuzumoe/linkTorch-api/tests/utils"
 )
 
 func TestHealthServiceIntegration(t *testing.T) {

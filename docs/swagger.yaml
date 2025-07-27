@@ -1,5 +1,27 @@
 basePath: /api/v1
 definitions:
+  crawler.CrawlResult:
+    properties:
+      duration:
+        description: Duration in nanoseconds
+        example: 1500000000
+        format: int64
+        type: integer
+      error: {}
+      linkCount:
+        type: integer
+      links:
+        description: 'Optional: include the actual links if needed'
+        items:
+          $ref: '#/definitions/model.Link'
+        type: array
+      status:
+        type: string
+      url:
+        type: string
+      urlid:
+        type: integer
+    type: object
   handler.LoginRequest:
     properties:
       email:
@@ -75,6 +97,26 @@ definitions:
       url_id:
         type: integer
     type: object
+  model.PaginatedResponse-model_URLDTO:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/model.URLDTO'
+        type: array
+      pagination:
+        $ref: '#/definitions/model.PaginationMetaDTO'
+    type: object
+  model.PaginationMetaDTO:
+    properties:
+      page:
+        type: integer
+      pageSize:
+        type: integer
+      totalItems:
+        type: integer
+      totalPages:
+        type: integer
+    type: object
   model.URLCreateRequestDTO:
     properties:
       original_url:
@@ -135,6 +177,60 @@ info:
   title: URL Insight API
   version: "1.0"
 paths:
+  /crawler/results:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: array of recent crawl results
+          schema:
+            items:
+              $ref: '#/definitions/crawler.CrawlResult'
+            type: array
+      security:
+      - JWTAuth: []
+      - BasicAuth: []
+      summary: Get recent crawl results
+      tags:
+      - crawler
+  /crawler/workers:
+    patch:
+      parameters:
+      - description: Action (add or remove)
+        enum:
+        - add
+        - remove
+        in: query
+        name: action
+        required: true
+        type: string
+      - description: Number of workers to add/remove
+        in: query
+        name: count
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: adjusted
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: bad request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - JWTAuth: []
+      - BasicAuth: []
+      summary: Adjust crawler workers
+      tags:
+      - crawler
   /health:
     get:
       description: Get the status of server and database connection
@@ -309,11 +405,9 @@ paths:
       - application/json
       responses:
         "200":
-          description: OK
+          description: Paginated URL list
           schema:
-            items:
-              $ref: '#/definitions/model.URLDTO'
-            type: array
+            $ref: '#/definitions/model.PaginatedResponse-model_URLDTO'
       security:
       - JWTAuth: []
       - BasicAuth: []
@@ -464,6 +558,11 @@ paths:
         in: path
         name: id
         required: true
+        type: integer
+      - default: 5
+        description: Priority (1-10, default 5)
+        in: query
+        name: priority
         type: integer
       produces:
       - application/json

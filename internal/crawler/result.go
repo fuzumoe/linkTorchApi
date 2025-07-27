@@ -3,7 +3,7 @@ package crawler
 import (
 	"time"
 
-	"github.com/fuzumoe/urlinsight-backend/internal/model"
+	"github.com/fuzumoe/linkTorch-api/internal/model"
 )
 
 // CrawlResult represents the outcome of a crawling operation
@@ -13,8 +13,8 @@ type CrawlResult struct {
 	Status    string
 	Error     error
 	LinkCount int
-	Duration  time.Duration
-	Links     []model.Link // Optional: include the actual links if needed
+	Duration  time.Duration `json:"duration" swaggertype:"integer" format:"int64" example:"1500000000"` // Duration in nanoseconds
+	Links     []model.Link  // Optional: include the actual links if needed
 }
 
 // PriorityTask represents a URL crawling task with priority

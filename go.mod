@@ -1,4 +1,4 @@
-module github.com/fuzumoe/urlinsight-backend
+module github.com/fuzumoe/linkTorch-api
 
 go 1.23.4
 

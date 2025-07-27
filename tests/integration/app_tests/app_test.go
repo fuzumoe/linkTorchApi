@@ -18,12 +18,12 @@ import (
 	"github.com/agiledragon/gomonkey/v2"
 	"github.com/stretchr/testify/require"
 
-	"github.com/fuzumoe/urlinsight-backend/configs"
-	"github.com/fuzumoe/urlinsight-backend/internal/analyzer"
-	"github.com/fuzumoe/urlinsight-backend/internal/app"
-	"github.com/fuzumoe/urlinsight-backend/internal/crawler"
-	"github.com/fuzumoe/urlinsight-backend/internal/repository"
-	"github.com/fuzumoe/urlinsight-backend/tests/utils"
+	"github.com/fuzumoe/linkTorch-api/configs"
+	"github.com/fuzumoe/linkTorch-api/internal/analyzer"
+	"github.com/fuzumoe/linkTorch-api/internal/app"
+	"github.com/fuzumoe/linkTorch-api/internal/crawler"
+	"github.com/fuzumoe/linkTorch-api/internal/repository"
+	"github.com/fuzumoe/linkTorch-api/tests/utils"
 )
 
 // Helper function to check if a string contains any of the given values.
@@ -109,13 +109,13 @@ func setupAppHelper(t *testing.T, port *int, baseURL *string) {
 	}
 	dbUser := os.Getenv("DB_USER")
 	if dbUser == "" {
-		dbUser = "urlinsight_user"
+		dbUser = "linkTorch_user"
 	}
 	dbPassword := os.Getenv("DB_PASSWORD")
 	if dbPassword == "" {
 		dbPassword = "secret"
 	}
-	dbName := "urlinsight_test"
+	dbName := "linkTorch_test"
 	testDBDSN := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true",
 		dbUser, dbPassword, dbHost, dbPort, dbName)
 	t.Logf("Using test DSN: %s", testDBDSN)
@@ -219,7 +219,7 @@ func healthEndpointsHelper(t *testing.T, baseURL string) {
 				t.Logf("Response from %s (not JSON): %s", path, bodyText)
 				if strings.Contains(strings.ToLower(bodyText), "ok") ||
 					strings.Contains(strings.ToLower(bodyText), "healthy") ||
-					strings.Contains(strings.ToLower(bodyText), "urlinsight") {
+					strings.Contains(strings.ToLower(bodyText), "linkTorch") {
 					result.Success = true
 					t.Logf("Found endpoint at %s with text response", path)
 				}
@@ -241,7 +241,7 @@ func healthEndpointsHelper(t *testing.T, baseURL string) {
 					if status, exists := result.Response[field]; exists {
 						t.Logf("Found field '%s' with value: %v in %s", field, status, result.Path)
 						statusStr := strings.ToLower(fmt.Sprintf("%v", status))
-						if !contains(statusStr, []string{"ok", "up", "healthy", "alive", "running", "hello", "urlinsight"}) {
+						if !contains(statusStr, []string{"ok", "up", "healthy", "alive", "running", "hello", "linkTorch"}) {
 							t.Logf("Warning: Unexpected status value in %s: %s", result.Path, statusStr)
 						}
 					}
@@ -287,7 +287,7 @@ func TestCrawlerIsRunning(t *testing.T) {
 
 	// Set up custom config without using setupAppHelper
 	testDBDSN := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true",
-		"urlinsight_user", "secret", "localhost", "3309", "urlinsight_test")
+		"linkTorch_user", "secret", "localhost", "3309", "linkTorch_test")
 
 	configPatches := gomonkey.ApplyFunc(app.LoadConfig, func() (*configs.Config, error) {
 		return &configs.Config{

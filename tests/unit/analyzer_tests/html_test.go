@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/fuzumoe/urlinsight-backend/internal/analyzer"
+	"github.com/fuzumoe/linkTorch-api/internal/analyzer"
 )
 
 func TestHTMLAnalyzer_Analyze(t *testing.T) {

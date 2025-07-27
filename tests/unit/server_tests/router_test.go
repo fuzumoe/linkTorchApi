@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/fuzumoe/urlinsight-backend/internal/server"
+	"github.com/fuzumoe/linkTorch-api/internal/server"
 )
 
 // MockRegistrar is a mock implementation of RouteRegistrar

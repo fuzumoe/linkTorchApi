@@ -5,7 +5,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/fuzumoe/urlinsight-backend/internal/app"
+	"github.com/fuzumoe/linkTorch-api/internal/app"
 )
 
 var run = app.Run

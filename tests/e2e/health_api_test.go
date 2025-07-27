@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	utils "github.com/fuzumoe/urlinsight-backend/tests/utils"
+	utils "github.com/fuzumoe/linkTorch-api/tests/utils"
 )
 
 // TestHealthAPI_E2E tests both health-related endpoints of the API.

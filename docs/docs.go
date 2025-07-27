@@ -15,6 +15,95 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/crawler/results": {
+            "get": {
+                "security": [
+                    {
+                        "JWTAuth": []
+                    },
+                    {
+                        "BasicAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "crawler"
+                ],
+                "summary": "Get recent crawl results",
+                "responses": {
+                    "200": {
+                        "description": "array of recent crawl results",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/crawler.CrawlResult"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/crawler/workers": {
+            "patch": {
+                "security": [
+                    {
+                        "JWTAuth": []
+                    },
+                    {
+                        "BasicAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "crawler"
+                ],
+                "summary": "Adjust crawler workers",
+                "parameters": [
+                    {
+                        "enum": [
+                            "add",
+                            "remove"
+                        ],
+                        "type": "string",
+                        "description": "Action (add or remove)",
+                        "name": "action",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Number of workers to add/remove",
+                        "name": "count",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "adjusted",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "bad request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/health": {
             "get": {
                 "description": "Get the status of server and database connection",
@@ -280,12 +369,9 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Paginated URL list",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/model.URLDTO"
-                            }
+                            "$ref": "#/definitions/model.PaginatedResponse-model_URLDTO"
                         }
                     }
                 }
@@ -542,6 +628,13 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "default": 5,
+                        "description": "Priority (1-10, default 5)",
+                        "name": "priority",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -598,6 +691,37 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "crawler.CrawlResult": {
+            "type": "object",
+            "properties": {
+                "duration": {
+                    "description": "Duration in nanoseconds",
+                    "type": "integer",
+                    "format": "int64",
+                    "example": 1500000000
+                },
+                "error": {},
+                "linkCount": {
+                    "type": "integer"
+                },
+                "links": {
+                    "description": "Optional: include the actual links if needed",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.Link"
+                    }
+                },
+                "status": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                },
+                "urlid": {
+                    "type": "integer"
+                }
+            }
+        },
         "handler.LoginRequest": {
             "type": "object",
             "required": [
@@ -707,6 +831,37 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "url_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "model.PaginatedResponse-model_URLDTO": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.URLDTO"
+                    }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/model.PaginationMetaDTO"
+                }
+            }
+        },
+        "model.PaginationMetaDTO": {
+            "type": "object",
+            "properties": {
+                "page": {
+                    "type": "integer"
+                },
+                "pageSize": {
+                    "type": "integer"
+                },
+                "totalItems": {
+                    "type": "integer"
+                },
+                "totalPages": {
                     "type": "integer"
                 }
             }

@@ -7,7 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/fuzumoe/urlinsight-backend/internal/service"
+	"github.com/fuzumoe/linkTorch-api/internal/service"
 )
 
 // HealthHandler provides health and status endpoints.

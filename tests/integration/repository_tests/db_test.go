@@ -7,8 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/fuzumoe/urlinsight-backend/internal/repository"
-	"github.com/fuzumoe/urlinsight-backend/tests/utils"
+	"github.com/fuzumoe/linkTorch-api/internal/repository"
+	"github.com/fuzumoe/linkTorch-api/tests/utils"
 )
 
 // TestNewDB_Integration tests the NewDB function with a real MySQL database connection.
@@ -17,10 +17,10 @@ func TestNewDB_Integration(t *testing.T) {
 	testDatabase := os.Getenv("TEST_DATABASE")
 	dsn := ""
 	if testDatabase == "" {
-		dsn = "urlinsight_user:secret@tcp(localhost:3309)/urlinsight_user?parseTime=true"
+		dsn = "linkTorch_user:secret@tcp(localhost:3309)/linkTorch_user?parseTime=true"
 	} else {
 
-		dsn = "urlinsight_user:secret@tcp(localhost:3309)/" + testDatabase + "?parseTime=true"
+		dsn = "linkTorch_user:secret@tcp(localhost:3309)/" + testDatabase + "?parseTime=true"
 	}
 
 	if err := utils.InitTestSuite(); err != nil {

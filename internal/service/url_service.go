@@ -4,9 +4,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/fuzumoe/urlinsight-backend/internal/crawler"
-	"github.com/fuzumoe/urlinsight-backend/internal/model"
-	"github.com/fuzumoe/urlinsight-backend/internal/repository"
+	"github.com/fuzumoe/linkTorch-api/internal/crawler"
+	"github.com/fuzumoe/linkTorch-api/internal/model"
+	"github.com/fuzumoe/linkTorch-api/internal/repository"
 )
 
 // URLService defines business operations around URLs.

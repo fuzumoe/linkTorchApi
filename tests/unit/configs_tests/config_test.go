@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/fuzumoe/urlinsight-backend/configs"
+	"github.com/fuzumoe/linkTorch-api/configs"
 )
 
 func TestLoad(t *testing.T) {

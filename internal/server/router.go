@@ -5,7 +5,7 @@ import (
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 
-	_ "github.com/fuzumoe/urlinsight-backend/docs" // swagger docs
+	_ "github.com/fuzumoe/linkTorch-api/docs" // swagger docs
 )
 
 // RouteRegistrar defines anything that can wire its routes into a Gin group.

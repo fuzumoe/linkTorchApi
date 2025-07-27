@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fuzumoe/urlinsight-backend/internal/analyzer"
-	"github.com/fuzumoe/urlinsight-backend/internal/repository"
+	"github.com/fuzumoe/linkTorch-api/internal/analyzer"
+	"github.com/fuzumoe/linkTorch-api/internal/repository"
 )
 
 // Pool defines the interface for a crawler pool that manages multiple workers.

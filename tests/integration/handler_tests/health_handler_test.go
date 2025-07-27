@@ -11,9 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	// Import from the actual folder "handler" but alias it as "handler"
-	"github.com/fuzumoe/urlinsight-backend/internal/handler"
-	"github.com/fuzumoe/urlinsight-backend/internal/service"
-	"github.com/fuzumoe/urlinsight-backend/tests/utils"
+	"github.com/fuzumoe/linkTorch-api/internal/handler"
+	"github.com/fuzumoe/linkTorch-api/internal/service"
+	"github.com/fuzumoe/linkTorch-api/tests/utils"
 )
 
 func TestHealthHandlerIntegration(t *testing.T) {

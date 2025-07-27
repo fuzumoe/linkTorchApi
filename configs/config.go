@@ -108,7 +108,7 @@ func Load() (*Config, error) {
 	cfg.CrawlTimeout = time.Duration(ts) * time.Second
 
 	// User agent
-	cfg.UserAgent = getEnv("USER_AGENT", "URLInsight-Bot/1.0")
+	cfg.UserAgent = getEnv("USER_AGENT", "LinkAgent-Bot/1.0")
 
 	return cfg, nil
 }

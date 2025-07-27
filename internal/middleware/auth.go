@@ -7,7 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/fuzumoe/urlinsight-backend/internal/service"
+	"github.com/fuzumoe/linkTorch-api/internal/service"
 )
 
 // AuthMiddleware returns middleware that supports HTTP Basic Auth and JWT auth using authService.

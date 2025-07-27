@@ -3,7 +3,7 @@ package repository
 import (
 	"fmt"
 
-	"github.com/fuzumoe/urlinsight-backend/internal/model"
+	"github.com/fuzumoe/linkTorch-api/internal/model"
 )
 
 // Migrator defines the subset of methods needed for migrations.

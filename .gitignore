@@ -4,7 +4,7 @@
 .env
 .vscode/
 *.log
-urlinsight-backend
+linkTorch-api
 tmp/
 vendor/
 coverage.*

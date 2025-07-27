@@ -7,17 +7,19 @@ GOGET=$(GOCMD) get
 GOMOD=$(GOCMD) mod
 GOTOOL=$(GOCMD) tool
 
-BINARY_NAME=urlinsight-backend
+BINARY_NAME=linkTorch-api
 BINARY_UNIX=$(BINARY_NAME)_unix
 
 # Test parameters
 TEST_TIMEOUT=30s
 TEST_COVERAGE_FILE=coverage.out
 TEST_COVERAGE_HTML=coverage.html
+# Dynamic cache control - use "make test-integration nocache=false" to enable cache
+COUNT_FLAG=$(if $(filter false,$(nocache)),,-count=1)
 
 # Build the application
 build:
-	$(GOBUILD) -o $(BINARY_NAME) -v .main.go
+	$(GOBUILD) -o $(BINARY_NAME) -v main.go
 
 # Build for Linux
 build-linux:
@@ -38,7 +40,7 @@ test-e2e: db-up
         echo "Waiting for MySQL on port 3309..."; \
         sleep 1; \
 	done
-	$(GOTEST) -p=1 -v -timeout $(TEST_TIMEOUT) ./tests/e2e/...
+	$(GOTEST) $(COUNT_FLAG) -p=1 -v -timeout $(TEST_TIMEOUT) ./tests/e2e/...
 
 # Run e2e tests with coverage
 test-e2e-coverage: db-up
@@ -47,13 +49,13 @@ test-e2e-coverage: db-up
         echo "Waiting for MySQL on port 3309..."; \
         sleep 1; \
 	done
-	$(GOTEST) -p=1 -v -timeout $(TEST_TIMEOUT) -coverprofile=$(TEST_COVERAGE_FILE) ./tests/e2e/...
+	$(GOTEST) $(COUNT_FLAG) -p=1 -v -timeout $(TEST_TIMEOUT) -coverprofile=$(TEST_COVERAGE_FILE) ./tests/e2e/...
 	$(GOTOOL) cover -html=$(TEST_COVERAGE_FILE) -o $(TEST_COVERAGE_HTML)
 	@echo "E2E test coverage report generated: $(TEST_COVERAGE_HTML)"
 
 # Run unit tests only (internal code + tests/unit)
 test-unit:
-	$(GOTEST) -v -timeout $(TEST_TIMEOUT) ./tests/unit/...
+	$(GOTEST) $(COUNT_FLAG) -v -timeout $(TEST_TIMEOUT) ./tests/unit/...
 
 # Run integration tests only
 test-integration: db-up
@@ -62,7 +64,7 @@ test-integration: db-up
         echo "Waiting for MySQL on port 3309..."; \
         sleep 1; \
 	done
-	$(GOTEST) -p=1 -v -timeout $(TEST_TIMEOUT) ./tests/integration/...
+	$(GOTEST) $(COUNT_FLAG) -p=1 -v -timeout $(TEST_TIMEOUT) ./tests/integration/...
 
 # Run tests with coverage
 test-coverage: db-up
@@ -75,7 +77,7 @@ test-coverage: db-up
 
 # Run unit tests with coverage
 test-unit-coverage:
-	$(GOTEST) -v -timeout $(TEST_TIMEOUT) -coverprofile=$(TEST_COVERAGE_FILE) ./tests/unit/...
+	$(GOTEST) $(COUNT_FLAG) -v -timeout $(TEST_TIMEOUT) -coverprofile=$(TEST_COVERAGE_FILE) ./tests/unit/...
 	$(GOTOOL) cover -html=$(TEST_COVERAGE_FILE) -o $(TEST_COVERAGE_HTML)
 	@echo "Unit test coverage report generated: $(TEST_COVERAGE_HTML)"
 
@@ -86,7 +88,7 @@ test-integration-coverage: db-up
         echo "Waiting for MySQL on port 3309..."; \
         sleep 1; \
 	done
-	$(GOTEST) -v -timeout $(TEST_TIMEOUT) -coverprofile=$(TEST_COVERAGE_FILE) ./tests/integration/...
+	$(GOTEST) $(COUNT_FLAG) -p=1 -v -timeout $(TEST_TIMEOUT) -coverprofile=$(TEST_COVERAGE_FILE) ./tests/integration/...
 	$(GOTOOL) cover -html=$(TEST_COVERAGE_FILE) -o $(TEST_COVERAGE_HTML)
 	@echo "Integration test coverage report generated: $(TEST_COVERAGE_HTML)"
 
@@ -158,7 +160,7 @@ db-down:
 # Test database setup (for integration tests)
 test-db-setup:
 	@echo "Setting up test database..."
-	@if docker ps | grep -q urlinsight-mysql; then \
+	@if docker ps | grep -q linkTorch-mysql; then \
         echo "Database container is running"; \
 	else \
         echo "Starting database container..."; \
@@ -174,11 +176,11 @@ benchmark: db-up
         echo "Waiting for MySQL on port 3309..."; \
         sleep 1; \
 	done
-	$(GOTEST) -v -bench=. -benchmem ./tests/...
+	$(GOTEST) $(COUNT_FLAG) -v -bench=. -benchmem ./tests/...
 
 # Benchmark unit tests
 benchmark-unit:
-	$(GOTEST) -v -bench=. -benchmem ./tests/unit/...
+	$(GOTEST) $(COUNT_FLAG) -v -bench=. -benchmem ./tests/unit/...
 
 # Install development tools
 install-dev-tools:
@@ -209,6 +211,10 @@ help:
 	@echo "  test-unit-coverage  - Run unit tests with coverage"
 	@echo "  test-integration-coverage - Run integration tests with coverage"
 	@echo "  test-e2e-coverage   - Run e2e tests with coverage"
+	@echo ""
+	@echo "  Cache control:"
+	@echo "    make test-integration              - Run without cache (default)"
+	@echo "    make test-integration nocache=false  - Run with cache enabled"
 	@echo ""
 	@echo "Development targets:"
 	@echo "  lint                - Run linting"

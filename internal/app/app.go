@@ -13,15 +13,15 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/fuzumoe/urlinsight-backend/configs"
-	"github.com/fuzumoe/urlinsight-backend/internal/analyzer"
-	"github.com/fuzumoe/urlinsight-backend/internal/crawler"
-	"github.com/fuzumoe/urlinsight-backend/internal/handler"
-	"github.com/fuzumoe/urlinsight-backend/internal/middleware"
-	"github.com/fuzumoe/urlinsight-backend/internal/model"
-	"github.com/fuzumoe/urlinsight-backend/internal/repository"
-	"github.com/fuzumoe/urlinsight-backend/internal/server"
-	"github.com/fuzumoe/urlinsight-backend/internal/service"
+	"github.com/fuzumoe/linkTorch-api/configs"
+	"github.com/fuzumoe/linkTorch-api/internal/analyzer"
+	"github.com/fuzumoe/linkTorch-api/internal/crawler"
+	"github.com/fuzumoe/linkTorch-api/internal/handler"
+	"github.com/fuzumoe/linkTorch-api/internal/middleware"
+	"github.com/fuzumoe/linkTorch-api/internal/model"
+	"github.com/fuzumoe/linkTorch-api/internal/repository"
+	"github.com/fuzumoe/linkTorch-api/internal/server"
+	"github.com/fuzumoe/linkTorch-api/internal/service"
 )
 
 // hookable for tests.
@@ -62,7 +62,7 @@ func Run() error {
 	urlRepo := repository.NewURLRepo(db)
 
 	// Instantiate services.
-	healthSvc := service.NewHealthService(db, "URLInsight Backend")
+	healthSvc := service.NewHealthService(db, "LinkTorch API")
 	userSvc := service.NewUserService(userRepo)
 	authSVC := service.NewAuthService(
 		userRepo,

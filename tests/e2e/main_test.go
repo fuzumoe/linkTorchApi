@@ -9,7 +9,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/fuzumoe/urlinsight-backend/tests/utils"
+	"github.com/fuzumoe/linkTorch-api/tests/utils"
 )
 
 func TestMain(m *testing.M) {

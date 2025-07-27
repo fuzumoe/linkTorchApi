@@ -1,4 +1,4 @@
-# URLInsight Backend
+# LinkTorch API
 
 A Go backend service for URL analysis and web crawling.
 
