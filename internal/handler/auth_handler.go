@@ -7,7 +7,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/fuzumoe/linkTorch-api/internal/model"
 	"github.com/fuzumoe/linkTorch-api/internal/service"
 )
 
@@ -29,13 +28,6 @@ func NewAuthHandler(authService service.AuthService, userService service.UserSer
 type LoginRequest struct {
 	Email    string `json:"email" binding:"required,email"`
 	Password string `json:"password" binding:"required"`
-}
-
-// RegisterRequest represents the expected body for registration requests.
-type RegisterRequest struct {
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required"`
-	Username string `json:"username" binding:"required"`
 }
 
 // LoginBasic godoc
@@ -120,49 +112,6 @@ func (h *AuthHandler) LoginJWT(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"token": token})
 }
 
-// Register godoc
-// @Summary      Register a new user and generate JWT token
-// @Description  Creates a new user, then generates and returns a JWT token for the user
-// @Tags         auth
-// @Accept       json
-// @Produce      json
-// @Param        registerRequest  body      RegisterRequest  true  "Register request payload"
-// @Success      201           {object}  map[string]interface{} "User registered and JWT token generated"
-// @Failure      400           {object}  map[string]interface{} "Invalid request or registration error"
-// @Security     JWTAuth
-// @Security     BasicAuth
-// @Router       /register [post]
-func (h *AuthHandler) Register(c *gin.Context) {
-	var req RegisterRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid registration request"})
-		return
-	}
-
-	input := &model.CreateUserInput{
-		Email:    req.Email,
-		Password: req.Password,
-		Username: req.Username,
-	}
-
-	userDTO, err := h.userService.Register(input)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	token, err := h.authService.Generate(userDTO.ID)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusCreated, gin.H{
-		"user":  userDTO,
-		"token": token,
-	})
-}
-
 // Logout godoc
 // @Summary      Logout and invalidate JWT token
 // @Description  Invalidates the current JWT token so it can no longer be used
@@ -236,7 +185,6 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 func (h *AuthHandler) RegisterPublicRoutes(rg *gin.RouterGroup) {
 	rg.POST("/login/basic", h.LoginBasic)
 	rg.POST("/login/jwt", h.LoginJWT)
-	rg.POST("/register", h.Register)
 }
 
 // RegisterProtectedRoutes registers the protected auth endpoints.
