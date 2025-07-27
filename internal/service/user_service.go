@@ -12,6 +12,7 @@ import (
 // UserService defines business operations around users.
 type UserService interface {
 	Register(input *model.CreateUserInput) (*model.UserDTO, error)
+	Update(id uint, input *model.UpdateUserInput) (*model.UserDTO, error)
 	Authenticate(email, password string) (*model.UserDTO, error)
 	Get(id uint) (*model.UserDTO, error)
 	Search(searchTerm, searchField, sortDirection string, p repository.Pagination) ([]*model.UserDTO, error)
@@ -47,6 +48,33 @@ func (s *userService) Register(input *model.CreateUserInput) (*model.UserDTO, er
 	}
 	dto := u.ToDTO()
 	return dto, nil
+}
+
+func (s *userService) Update(id uint, input *model.UpdateUserInput) (*model.UserDTO, error) {
+	u, err := s.repo.FindByID(id)
+	if err != nil {
+		return nil, err
+	}
+	if input.Username != nil {
+		u.Username = *input.Username
+	}
+	if input.Email != nil {
+		u.Email = *input.Email
+	}
+	if input.Password != nil {
+		hash, err := bcrypt.GenerateFromPassword([]byte(*input.Password), bcrypt.DefaultCost)
+		if err != nil {
+			return nil, err
+		}
+		u.Password = string(hash)
+	}
+	if input.Role != nil {
+		u.Role = *input.Role
+	}
+	if err := s.repo.Update(id, u); err != nil {
+		return nil, err
+	}
+	return u.ToDTO(), nil
 }
 
 func (s *userService) Authenticate(email, password string) (*model.UserDTO, error) {

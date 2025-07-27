@@ -107,16 +107,16 @@ func TestUserService_Integration(t *testing.T) {
 		assert.Nil(t, user)
 	})
 
-	t.Run("List_Empty", func(t *testing.T) {
+	t.Run("Search Empty", func(t *testing.T) {
 		// This test should be run before adding the second user.
 		pagination := repository.Pagination{Page: 1, PageSize: 10}
-		users, err := userService.List(pagination)
+		users, err := userService.Search("", "", "", pagination)
 		require.NoError(t, err)
 		assert.NotEmpty(t, users)
 	})
 
-	t.Run("List_Multiple", func(t *testing.T) {
-		// Create a second user.
+	t.Run("Search Multiple", func(t *testing.T) {
+		// Create a second user
 		input := &model.CreateUserInput{
 			Username: secondTestUsername,
 			Email:    secondTestEmail,
@@ -125,25 +125,49 @@ func TestUserService_Integration(t *testing.T) {
 		_, err := userService.Register(input)
 		require.NoError(t, err)
 
-		// List users.
 		pagination := repository.Pagination{Page: 1, PageSize: 10}
-		users, err := userService.List(pagination)
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, len(users), 2)
 
-		// Check that both users exist in the list.
-		foundFirst := false
-		foundSecond := false
-		for _, u := range users {
-			if u.Email == testEmail {
-				foundFirst = true
+		// Test case 1: Search by username
+		t.Run("By Username", func(t *testing.T) {
+			users, err := userService.Search("", "", "user", pagination)
+			require.NoError(t, err)
+			assert.GreaterOrEqual(t, len(users), 2, "Should find at least 2 users with 'user' in username")
+
+			foundFirst := false
+			foundSecond := false
+			for _, u := range users {
+				if u.Email == testEmail {
+					foundFirst = true
+				}
+				if u.Email == secondTestEmail {
+					foundSecond = true
+				}
 			}
-			if u.Email == secondTestEmail {
-				foundSecond = true
-			}
-		}
-		assert.True(t, foundFirst, "First test user should be in the list")
-		assert.True(t, foundSecond, "Second test user should be in the list")
+			assert.True(t, foundFirst, "First test user should be in the list")
+			assert.True(t, foundSecond, "Second test user should be in the list")
+		})
+
+		// Test case 2: Search by specific email
+		t.Run("By Email", func(t *testing.T) {
+			users, err := userService.Search(testEmail, "", "", pagination)
+			require.NoError(t, err)
+			assert.Equal(t, 1, len(users), "Should find exactly 1 user with this email")
+			assert.Equal(t, testEmail, users[0].Email)
+		})
+
+		// Test case 3: Search by partial email
+		t.Run("By Partial Email", func(t *testing.T) {
+			users, err := userService.Search("example.com", "", "", pagination)
+			require.NoError(t, err)
+			assert.GreaterOrEqual(t, len(users), 2, "Should find at least 2 users with 'example.com' in email")
+		})
+
+		// Test case 4: Find all users (empty filters)
+		t.Run("All Users", func(t *testing.T) {
+			users, err := userService.Search("", "", "", pagination)
+			require.NoError(t, err)
+			assert.GreaterOrEqual(t, len(users), 2, "Should find at least 2 users total")
+		})
 	})
 
 	t.Run("Delete", func(t *testing.T) {
