@@ -26,3 +26,4 @@ A Go backend service for URL analysis and web crawling.
 - `internal` - application code (server, handler, service, repository, model, middleware)
 - `pkg/errors` - shared error helpers
 - `tests` - integration and e2e tests
+# Test comment
