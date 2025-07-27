@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
@@ -92,18 +93,21 @@ func TestAuthMiddleware(t *testing.T) {
 			headerValue    string
 			setupMock      func(m *MockAuthService)
 			expectedStatus int
+			checkContext   func(t *testing.T, c *gin.Context)
 		}{
 			{
 				name:           "Invalid Base64",
 				headerValue:    "Basic invalidbase64",
 				setupMock:      func(m *MockAuthService) {},
 				expectedStatus: http.StatusBadRequest,
+				checkContext:   nil,
 			},
 			{
 				name:           "Invalid basic auth format",
 				headerValue:    "Basic " + base64.StdEncoding.EncodeToString([]byte("foo")),
 				setupMock:      func(m *MockAuthService) {},
 				expectedStatus: http.StatusBadRequest,
+				checkContext:   nil,
 			},
 			{
 				name:        "Authentication failure",
@@ -113,15 +117,30 @@ func TestAuthMiddleware(t *testing.T) {
 						Return(nil, errors.New("invalid credentials"))
 				},
 				expectedStatus: http.StatusUnauthorized,
+				checkContext:   nil,
 			},
 			{
 				name:        "Successful auth",
 				headerValue: "Basic " + base64.StdEncoding.EncodeToString([]byte("user@example.com:correctpassword")),
 				setupMock: func(m *MockAuthService) {
 					m.On("AuthenticateBasic", "user@example.com", "correctpassword").
-						Return(&model.UserDTO{ID: 42, Username: "testuser", Email: "user@example.com"}, nil)
+						Return(&model.UserDTO{ID: 42, Username: "testuser", Email: "user@example.com", Role: model.RoleUser}, nil)
 				},
 				expectedStatus: http.StatusOK,
+				checkContext: func(t *testing.T, c *gin.Context) {
+					// Check if user info is correctly set in context
+					userID, exists := c.Get("user_id")
+					assert.True(t, exists)
+					assert.Equal(t, uint(42), userID)
+
+					userEmail, exists := c.Get("user_email")
+					assert.True(t, exists)
+					assert.Equal(t, "user@example.com", userEmail)
+
+					userRole, exists := c.Get("user_role")
+					assert.True(t, exists)
+					assert.Equal(t, model.RoleUser, userRole) // Use model.RoleUser instead of string
+				},
 			},
 		}
 
@@ -131,9 +150,14 @@ func TestAuthMiddleware(t *testing.T) {
 				mockAuth := new(MockAuthService)
 				tc.setupMock(mockAuth)
 
+				var capturedContext *gin.Context // To capture the context for validation
+
 				router := gin.New()
 				router.Use(middleware.AuthMiddleware(mockAuth))
 				router.GET("/test", func(c *gin.Context) {
+					if tc.checkContext != nil {
+						capturedContext = c
+					}
 					c.String(http.StatusOK, "passed")
 				})
 
@@ -144,8 +168,12 @@ func TestAuthMiddleware(t *testing.T) {
 				w := httptest.NewRecorder()
 				router.ServeHTTP(w, req)
 				require.Equal(t, tc.expectedStatus, w.Code)
+
 				if tc.expectedStatus == http.StatusOK {
 					require.Equal(t, "passed", w.Body.String())
+					if tc.checkContext != nil {
+						tc.checkContext(t, capturedContext)
+					}
 				}
 
 				mockAuth.AssertExpectations(t)
@@ -159,6 +187,7 @@ func TestAuthMiddleware(t *testing.T) {
 			headerValue    string
 			setupMock      func(m *MockAuthService)
 			expectedStatus int
+			checkContext   func(t *testing.T, c *gin.Context)
 		}{
 			{
 				name:        "Invalid prefix",
@@ -168,12 +197,14 @@ func TestAuthMiddleware(t *testing.T) {
 					m.On("Validate", "foo").Return(nil, errors.New("invalid token"))
 				},
 				expectedStatus: http.StatusUnauthorized,
+				checkContext:   nil,
 			},
 			{
 				name:           "Unsupported auth type",
 				headerValue:    "Digest something",
 				setupMock:      func(m *MockAuthService) {},
 				expectedStatus: http.StatusUnauthorized,
+				checkContext:   nil,
 			},
 			{
 				name:        "Token validation fails",
@@ -182,6 +213,7 @@ func TestAuthMiddleware(t *testing.T) {
 					m.On("Validate", "invalidtoken").Return(nil, errors.New("invalid token"))
 				},
 				expectedStatus: http.StatusUnauthorized,
+				checkContext:   nil,
 			},
 			{
 				name:        "Token blacklisted",
@@ -193,28 +225,14 @@ func TestAuthMiddleware(t *testing.T) {
 							ExpiresAt: jwt.NewNumericDate(time.Now().Add(1 * time.Hour)),
 						},
 						UserID: 42,
+						Email:  "user@example.com",
+						Role:   model.RoleUser, // Use model.RoleUser constant
 					}
 					m.On("Validate", "validtoken").Return(claims, nil)
 					m.On("IsTokenRevoked", "abc123").Return(true, nil)
 				},
 				expectedStatus: http.StatusUnauthorized,
-			},
-			{
-				name:        "User no longer exists",
-				headerValue: "Bearer validtoken",
-				setupMock: func(m *MockAuthService) {
-					claims := &service.Claims{
-						RegisteredClaims: jwt.RegisteredClaims{
-							ID:        "abc123",
-							ExpiresAt: jwt.NewNumericDate(time.Now().Add(1 * time.Hour)),
-						},
-						UserID: 42,
-					}
-					m.On("Validate", "validtoken").Return(claims, nil)
-					m.On("IsTokenRevoked", "abc123").Return(false, nil)
-					m.On("FindUserById", uint(42)).Return(nil, errors.New("user not found"))
-				},
-				expectedStatus: http.StatusUnauthorized,
+				checkContext:   nil,
 			},
 			{
 				name:        "Successful JWT auth",
@@ -226,12 +244,31 @@ func TestAuthMiddleware(t *testing.T) {
 							ExpiresAt: jwt.NewNumericDate(time.Now().Add(1 * time.Hour)),
 						},
 						UserID: 42,
+						Email:  "user@example.com",
+						Role:   model.RoleAdmin, // Use model.RoleAdmin constant
 					}
 					m.On("Validate", "validtoken").Return(claims, nil)
 					m.On("IsTokenRevoked", "abc123").Return(false, nil)
-					m.On("FindUserById", uint(42)).Return(&model.UserDTO{ID: 42, Username: "testuser", Email: "user@example.com"}, nil)
 				},
 				expectedStatus: http.StatusOK,
+				checkContext: func(t *testing.T, c *gin.Context) {
+					// Check if user info is correctly set in context
+					userID, exists := c.Get("user_id")
+					assert.True(t, exists)
+					assert.Equal(t, uint(42), userID)
+
+					userEmail, exists := c.Get("user_email")
+					assert.True(t, exists)
+					assert.Equal(t, "user@example.com", userEmail)
+
+					userRole, exists := c.Get("user_role")
+					assert.True(t, exists)
+					assert.Equal(t, model.RoleAdmin, userRole) // Use model.RoleAdmin constant
+
+					jti, exists := c.Get("jti")
+					assert.True(t, exists)
+					assert.Equal(t, "abc123", jti)
+				},
 			},
 		}
 
@@ -241,9 +278,14 @@ func TestAuthMiddleware(t *testing.T) {
 				mockAuth := new(MockAuthService)
 				tc.setupMock(mockAuth)
 
+				var capturedContext *gin.Context // To capture the context for validation
+
 				router := gin.New()
 				router.Use(middleware.AuthMiddleware(mockAuth))
 				router.GET("/test", func(c *gin.Context) {
+					if tc.checkContext != nil {
+						capturedContext = c
+					}
 					c.String(http.StatusOK, "jwt passed")
 				})
 
@@ -254,8 +296,12 @@ func TestAuthMiddleware(t *testing.T) {
 				w := httptest.NewRecorder()
 				router.ServeHTTP(w, req)
 				require.Equal(t, tc.expectedStatus, w.Code)
+
 				if tc.expectedStatus == http.StatusOK {
 					require.Equal(t, "jwt passed", w.Body.String())
+					if tc.checkContext != nil {
+						tc.checkContext(t, capturedContext)
+					}
 				}
 
 				mockAuth.AssertExpectations(t)

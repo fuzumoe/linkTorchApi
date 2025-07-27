@@ -45,8 +45,13 @@ func (m *MockUserRepository) Delete(id uint) error {
 	return args.Error(0)
 }
 
-func (m *MockUserRepository) ListAll(p repository.Pagination) ([]model.User, error) {
-	args := m.Called(p)
+func (m *MockUserRepository) Update(id uint, u *model.User) error {
+	args := m.Called(id, u)
+	return args.Error(0)
+}
+
+func (m *MockUserRepository) Search(email string, role string, username string, p repository.Pagination) ([]model.User, error) {
+	args := m.Called(email, role, username, p)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -72,8 +77,6 @@ func (m *MockTokenRepository) RemoveExpired() error {
 	return args.Error(0)
 }
 
-// Helper to create a test user
-// Helper to create a test user
 func createTestUser(id uint) *model.User {
 	validHash := "$2a$10$DwPN33P/gX.yrFZ7Vw4GpuScqXd2QrQJtBSmPnxLrhS/Pv7T/Kvja"
 
@@ -82,6 +85,7 @@ func createTestUser(id uint) *model.User {
 		Username: "testuser",
 		Email:    "test@example.com",
 		Password: validHash,
+		Role:     "user",
 	}
 }
 
@@ -97,11 +101,8 @@ func TestAuthService_AuthenticateBasic(t *testing.T) {
 		password := "password123"
 		user := createTestUser(1)
 
-		// We cannot easily mock bcrypt verification, so we'll focus on the repository call
 		mockUserRepo.On("FindByEmail", email).Return(user, nil).Once()
 
-		// Don't assert on the error - we know it will fail due to bcrypt
-		// Just check the repository was called correctly
 		svc.AuthenticateBasic(email, password)
 		mockUserRepo.AssertCalled(t, "FindByEmail", email)
 		mockUserRepo.AssertExpectations(t)
@@ -133,15 +134,12 @@ func TestAuthService_Generate(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		user := createTestUser(userID)
 
-		// Mock successful user lookup
 		mockUserRepo.On("FindByID", userID).Return(user, nil).Once()
 
-		// Execute
 		tokenString, err := svc.Generate(userID)
 		require.NoError(t, err)
 		assert.NotEmpty(t, tokenString)
 
-		// Parse the token to verify its contents
 		token, err := jwt.ParseWithClaims(tokenString, &service.Claims{}, func(token *jwt.Token) (interface{}, error) {
 			return []byte(jwtSecret), nil
 		})
@@ -150,10 +148,11 @@ func TestAuthService_Generate(t *testing.T) {
 		claims, ok := token.Claims.(*service.Claims)
 		require.True(t, ok)
 		assert.Equal(t, userID, claims.UserID)
-		assert.NotEmpty(t, claims.ID) // JTI should be present
+		assert.Equal(t, user.Email, claims.Email)
+		assert.Equal(t, user.Role, claims.Role)
+		assert.NotEmpty(t, claims.ID)
 
 		now := time.Now().UTC()
-		// Check issued at / expiry times with tolerance
 		assert.WithinDuration(t, now, claims.IssuedAt.Time, 2*time.Second)
 		assert.WithinDuration(t, now.Add(tokenLifetime), claims.ExpiresAt.Time, 2*time.Second)
 
@@ -161,7 +160,6 @@ func TestAuthService_Generate(t *testing.T) {
 	})
 
 	t.Run("User Not Found", func(t *testing.T) {
-		// Mock user not found
 		mockUserRepo.On("FindByID", userID).Return(nil, errors.New("user not found")).Once()
 
 		tokenString, err := svc.Generate(userID)
@@ -181,12 +179,10 @@ func TestAuthService_Validate(t *testing.T) {
 
 	userID := uint(123)
 
-	// Generate a valid token for testing
 	mockUserRepo.On("FindByID", userID).Return(createTestUser(userID), nil).Once()
 	validToken, err := svc.Generate(userID)
 	require.NoError(t, err)
 
-	// Parse the token to get its ID for later tests
 	token, _ := jwt.ParseWithClaims(validToken, &service.Claims{}, func(token *jwt.Token) (interface{}, error) {
 		return []byte(jwtSecret), nil
 	})
@@ -194,7 +190,6 @@ func TestAuthService_Validate(t *testing.T) {
 	tokenID := claims.ID
 
 	t.Run("Valid Token", func(t *testing.T) {
-		// Mock token not revoked
 		mockTokenRepo.On("IsBlacklisted", tokenID).Return(false, nil).Once()
 
 		claims, err := svc.Validate(validToken)
@@ -212,7 +207,6 @@ func TestAuthService_Validate(t *testing.T) {
 	})
 
 	t.Run("Wrong Signature", func(t *testing.T) {
-		// Generate token with a wrong secret
 		wrongSvc := service.NewAuthService(mockUserRepo, mockTokenRepo, "wrong-secret", tokenLifetime)
 		mockUserRepo.On("FindByID", userID).Return(createTestUser(userID), nil).Once()
 		wrongToken, err := wrongSvc.Generate(userID)
@@ -225,13 +219,14 @@ func TestAuthService_Validate(t *testing.T) {
 	})
 
 	t.Run("Expired Token", func(t *testing.T) {
-		// Create an expired token
 		expiredClaims := service.Claims{
 			UserID: userID,
+			Email:  "test@example.com",
+			Role:   "user",
 			RegisteredClaims: jwt.RegisteredClaims{
 				ID:        "test-jti",
 				IssuedAt:  jwt.NewNumericDate(time.Now().Add(-2 * time.Hour)),
-				ExpiresAt: jwt.NewNumericDate(time.Now().Add(-1 * time.Hour)), // expired 1 hour ago
+				ExpiresAt: jwt.NewNumericDate(time.Now().Add(-1 * time.Hour)),
 				Subject:   "access_token",
 			},
 		}
@@ -246,7 +241,6 @@ func TestAuthService_Validate(t *testing.T) {
 	})
 
 	t.Run("Revoked Token", func(t *testing.T) {
-		// Mock token revoked
 		mockTokenRepo.On("IsBlacklisted", tokenID).Return(true, nil).Once()
 
 		claims, err := svc.Validate(validToken)
@@ -257,7 +251,6 @@ func TestAuthService_Validate(t *testing.T) {
 	})
 
 	t.Run("Blacklist Check Failed", func(t *testing.T) {
-		// Mock blacklist check error
 		mockTokenRepo.On("IsBlacklisted", tokenID).Return(false, errors.New("db error")).Once()
 
 		claims, err := svc.Validate(validToken)
@@ -330,11 +323,10 @@ func TestAuthService_FindUserById(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotNil(t, userDTO)
 
-		// Compare the actual DTO with the expected one
 		assert.Equal(t, expectedDTO.ID, userDTO.ID)
 		assert.Equal(t, expectedDTO.Username, userDTO.Username)
 		assert.Equal(t, expectedDTO.Email, userDTO.Email)
-		// Add any other fields you want to compare
+		assert.Equal(t, expectedDTO.Role, userDTO.Role)
 
 		mockUserRepo.AssertExpectations(t)
 	})

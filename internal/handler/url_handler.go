@@ -16,9 +16,11 @@ type URLHandler struct {
 	urlService service.URLService
 }
 
-func NewURLHandler(svc service.URLService) *URLHandler { return &URLHandler{urlService: svc} }
+func NewURLHandler(urlService service.URLService) *URLHandler {
+	return &URLHandler{urlService: urlService}
+}
 
-func parseUintParam(c *gin.Context, name string) (uint, bool) {
+func (h *URLHandler) parseUintParam(c *gin.Context, name string) (uint, bool) {
 	v, err := strconv.ParseUint(c.Param(name), 10, 64)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
@@ -27,7 +29,7 @@ func parseUintParam(c *gin.Context, name string) (uint, bool) {
 	return uint(v), true
 }
 
-func paginationFromQuery(c *gin.Context) repository.Pagination {
+func (h *URLHandler) paginationFromQuery(c *gin.Context) repository.Pagination {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	size, _ := strconv.Atoi(c.DefaultQuery("page_size", "10"))
 	return repository.Pagination{Page: page, PageSize: size}
@@ -88,7 +90,7 @@ func (h *URLHandler) List(c *gin.Context) {
 	}
 	userID := uidAny.(uint)
 
-	paginatedResult, err := h.urlService.List(userID, paginationFromQuery(c))
+	paginatedResult, err := h.urlService.List(userID, h.paginationFromQuery(c))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -105,7 +107,7 @@ func (h *URLHandler) List(c *gin.Context) {
 // @Security BasicAuth
 // @Router  /urls/{id} [get]
 func (h *URLHandler) Get(c *gin.Context) {
-	id, ok := parseUintParam(c, "id")
+	id, ok := h.parseUintParam(c, "id")
 	if !ok {
 		return
 	}
@@ -128,7 +130,7 @@ func (h *URLHandler) Get(c *gin.Context) {
 // @Security BasicAuth
 // @Router  /urls/{id} [put]
 func (h *URLHandler) Update(c *gin.Context) {
-	id, ok := parseUintParam(c, "id")
+	id, ok := h.parseUintParam(c, "id")
 	if !ok {
 		return
 	}
@@ -154,7 +156,7 @@ func (h *URLHandler) Update(c *gin.Context) {
 // @Security BasicAuth
 // @Router  /urls/{id} [delete]
 func (h *URLHandler) Delete(c *gin.Context) {
-	id, ok := parseUintParam(c, "id")
+	id, ok := h.parseUintParam(c, "id")
 	if !ok {
 		return
 	}
@@ -175,7 +177,7 @@ func (h *URLHandler) Delete(c *gin.Context) {
 // @Security BasicAuth
 // @Router  /urls/{id}/start [patch]
 func (h *URLHandler) Start(c *gin.Context) {
-	id, ok := parseUintParam(c, "id")
+	id, ok := h.parseUintParam(c, "id")
 	if !ok {
 		return
 	}
@@ -212,7 +214,7 @@ func (h *URLHandler) Start(c *gin.Context) {
 // @Security BasicAuth
 // @Router  /urls/{id}/stop [patch]
 func (h *URLHandler) Stop(c *gin.Context) {
-	id, ok := parseUintParam(c, "id")
+	id, ok := h.parseUintParam(c, "id")
 	if !ok {
 		return
 	}
@@ -234,7 +236,7 @@ func (h *URLHandler) Stop(c *gin.Context) {
 // @Security BasicAuth
 // @Router  /urls/{id}/results [get]
 func (h *URLHandler) Results(c *gin.Context) {
-	id, ok := parseUintParam(c, "id")
+	id, ok := h.parseUintParam(c, "id")
 	if !ok {
 		return
 	}

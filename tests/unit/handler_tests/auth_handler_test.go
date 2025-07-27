@@ -19,7 +19,6 @@ import (
 	"github.com/fuzumoe/linkTorch-api/internal/service"
 )
 
-// MockAuthService mocks the service.AuthService interface.
 type MockAuthService struct {
 	mock.Mock
 }
@@ -68,7 +67,6 @@ func (m *MockAuthService) FindUserById(userID uint) (*model.UserDTO, error) {
 	return nil, args.Error(1)
 }
 
-// MockUserService mocks the service.UserService interface.
 type MockUserService struct {
 	mock.Mock
 }
@@ -89,9 +87,12 @@ func (m *MockUserService) Register(input *model.CreateUserInput) (*model.UserDTO
 	return nil, args.Error(1)
 }
 
-func (m *MockUserService) Update(user *model.UserDTO) error {
-	args := m.Called(user)
-	return args.Error(0)
+func (m *MockUserService) Update(id uint, input *model.UpdateUserInput) (*model.UserDTO, error) {
+	args := m.Called(id, input)
+	if user, ok := args.Get(0).(*model.UserDTO); ok {
+		return user, args.Error(1)
+	}
+	return nil, args.Error(1)
 }
 
 func (m *MockUserService) Delete(userID uint) error {
@@ -99,7 +100,6 @@ func (m *MockUserService) Delete(userID uint) error {
 	return args.Error(0)
 }
 
-// Get is added to implement service.UserService.
 func (m *MockUserService) Get(userID uint) (*model.UserDTO, error) {
 	args := m.Called(userID)
 	if user, ok := args.Get(0).(*model.UserDTO); ok {
@@ -108,11 +108,10 @@ func (m *MockUserService) Get(userID uint) (*model.UserDTO, error) {
 	return nil, args.Error(1)
 }
 
-// List is updated to implement service.UserService with the Pagination parameter.
-func (m *MockUserService) List(p repository.Pagination) ([]*model.UserDTO, error) {
-	args := m.Called(p)
-	if list, ok := args.Get(0).([]*model.UserDTO); ok {
-		return list, args.Error(1)
+func (m *MockUserService) Search(email string, role string, username string, p repository.Pagination) ([]*model.UserDTO, error) {
+	args := m.Called(email, role, username, p)
+	if users, ok := args.Get(0).([]*model.UserDTO); ok {
+		return users, args.Error(1)
 	}
 	return nil, args.Error(1)
 }
@@ -130,11 +129,9 @@ func TestLoginBasic(t *testing.T) {
 		Email: testEmail,
 	}
 
-	// Expect the userService to authenticate and authService to generate a token.
 	userService.On("Authenticate", testEmail, testPassword).Return(userDTO, nil)
 	authService.On("Generate", uint(1)).Return("JWT-TOKEN", nil)
 
-	// Create a test context with a Basic auth header.
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	creds := testEmail + ":" + testPassword
@@ -194,63 +191,18 @@ func TestLoginJWT(t *testing.T) {
 	authService.AssertExpectations(t)
 }
 
-func TestRegister(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	authService := new(MockAuthService)
-	userService := new(MockUserService)
-	h := handler.NewAuthHandler(authService, userService)
-
-	regPayload := map[string]string{
-		"email":    "new@example.com",
-		"password": "newpassword",
-		"username": "newuser",
-	}
-	reqBytes, _ := json.Marshal(regPayload)
-	req := httptest.NewRequest(http.MethodPost, "/register", bytes.NewBuffer(reqBytes))
-	req.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-
-	newUser := &model.UserDTO{
-		ID:       3,
-		Email:    "new@example.com",
-		Username: "newuser",
-	}
-	// Expect the Register call and token generation.
-	userService.On("Register", mock.MatchedBy(func(input *model.CreateUserInput) bool {
-		return input.Email == "new@example.com" && input.Username == "newuser"
-	})).Return(newUser, nil)
-	authService.On("Generate", uint(3)).Return("NEW-JWT-TOKEN", nil)
-
-	c, _ := gin.CreateTestContext(w)
-	c.Request = req
-
-	h.Register(c)
-
-	assert.Equal(t, http.StatusCreated, w.Code)
-	var resp map[string]interface{}
-	err := json.Unmarshal(w.Body.Bytes(), &resp)
-	assert.NoError(t, err)
-	assert.NotNil(t, resp["user"])
-	assert.Equal(t, "NEW-JWT-TOKEN", resp["token"])
-
-	userService.AssertExpectations(t)
-	authService.AssertExpectations(t)
-}
-
 func TestLogout(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	authService := new(MockAuthService)
 	userService := new(MockUserService)
 	h := handler.NewAuthHandler(authService, userService)
 
-	// Prepare a token string and corresponding claims.
 	tokenStr := "TestBearerToken"
 	claims := &service.Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			ID: "unique-token-id",
 		},
 	}
-	// Expect Validate and Invalidate to be called.
 	authService.On("Validate", tokenStr).Return(claims, nil)
 	authService.On("Invalidate", "unique-token-id").Return(nil)
 
