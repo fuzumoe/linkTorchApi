@@ -52,14 +52,12 @@ func (h *URLHandler) Create(c *gin.Context) {
 		return
 	}
 
-	// Get user ID from the auth context
 	uidAny, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
-	// Create the full input DTO with both UserID and OriginalURL
 	inputDTO := &model.CreateURLInputDTO{
 		UserID:      uidAny.(uint),
 		OriginalURL: requestDTO.OriginalURL,
@@ -182,14 +180,12 @@ func (h *URLHandler) Start(c *gin.Context) {
 		return
 	}
 
-	// Check if priority is specified
 	priorityStr := c.DefaultQuery("priority", "5")
 	priority, err := strconv.Atoi(priorityStr)
 	if err != nil || priority < 1 || priority > 10 {
 		priority = 5 // Default priority
 	}
 
-	// Use StartWithPriority if priority is specified, otherwise use Start
 	if priorityStr != "5" {
 		if err := h.urlService.StartWithPriority(id, priority); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -241,10 +237,9 @@ func (h *URLHandler) Results(c *gin.Context) {
 		return
 	}
 
-	// Use the existing ResultsWithDetails method
 	url, analysisResults, links, err := h.urlService.ResultsWithDetails(id)
 	if err != nil {
-		// Check if it's a "not found" error
+
 		if err.Error() == "record not found" {
 			c.JSON(http.StatusNotFound, gin.H{"error": "URL not found"})
 			return
@@ -253,7 +248,6 @@ func (h *URLHandler) Results(c *gin.Context) {
 		return
 	}
 
-	// Build the URLResultsDTO struct manually
 	dto := &model.URLResultsDTO{
 		URL:             url.ToDTO(),
 		AnalysisResults: analysisResults,
@@ -304,13 +298,6 @@ func (h *URLHandler) AdjustWorkers(c *gin.Context) {
 // @Security BasicAuth
 // @Router  /crawler/results [get]
 func (h *URLHandler) GetCrawlResults(c *gin.Context) {
-	// In a real implementation, this would likely be a WebSocket or Server-Sent Events endpoint
-	// For demonstration purposes, we'll return the last few results from an in-memory buffer
-
-	// This is a stub implementation - in a real app, you would:
-	// 1. Maintain a buffer of recent results
-	// 2. Use WebSockets to stream results in real-time
-	// 3. Allow filtering by URL ID
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "This endpoint would stream real-time crawl results. In a production implementation, consider using WebSockets or Server-Sent Events.",
@@ -327,8 +314,6 @@ func (h *URLHandler) RegisterProtectedRoutes(rg *gin.RouterGroup) {
 	rg.PATCH("/urls/:id/start", h.Start)
 	rg.PATCH("/urls/:id/stop", h.Stop)
 	rg.GET("/urls/:id/results", h.Results)
-
-	// Crawler management endpoints
 	rg.PATCH("/crawler/workers", h.AdjustWorkers)
 	rg.GET("/crawler/results", h.GetCrawlResults)
 }

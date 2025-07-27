@@ -126,7 +126,6 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		return
 	}
 
-	// Handle Bearer token (JWT)
 	if strings.HasPrefix(authHeader, "Bearer ") {
 		tokenString := authHeader[len("Bearer "):]
 		claims, err := h.authService.Validate(tokenString)
@@ -145,7 +144,6 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		return
 	}
 
-	// Handle Basic Authentication
 	if strings.HasPrefix(authHeader, "Basic ") {
 		decoded, err := base64.StdEncoding.DecodeString(authHeader[len("Basic "):])
 		if err != nil {
@@ -160,31 +158,24 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		}
 		email, password := parts[0], parts[1]
 
-		// Authenticate the user with Basic Auth
 		_, err = h.userService.Authenticate(email, password)
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "authentication failed"})
 			return
 		}
 
-		// For Basic Auth, we don't have a specific token to invalidate
-		// You could invalidate all tokens for this user, or simply return success
-		// This implementation returns success without invalidating tokens
 		c.JSON(http.StatusOK, gin.H{"message": "logged out"})
 		return
 	}
 
-	// If we get here, the authorization type is not supported
 	c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported authorization type"})
 }
 
-// RegisterPublicRoutes registers the public auth endpoints.
 func (h *AuthHandler) RegisterPublicRoutes(rg *gin.RouterGroup) {
 	rg.POST("/login/basic", h.LoginBasic)
 	rg.POST("/login/jwt", h.LoginJWT)
 }
 
-// RegisterProtectedRoutes registers the protected auth endpoints.
 func (h *AuthHandler) RegisterProtectedRoutes(rg *gin.RouterGroup) {
 	rg.POST("/logout", h.Logout)
 }
